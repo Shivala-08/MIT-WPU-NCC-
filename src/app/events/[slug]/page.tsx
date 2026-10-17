@@ -24,6 +24,27 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: event.title,
     description: event.description,
+    openGraph: {
+      title: event.title,
+      description: event.description,
+      type: "article",
+      locale: "en_IN",
+      images: event.thumbnail
+        ? [{ url: event.thumbnail, width: 1200, height: 630, alt: event.title }]
+        : [
+            {
+              url: "/images/logo/ncc-logo.png",
+              width: 1200,
+              height: 630,
+              alt: "NCC MIT WPU",
+            },
+          ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: event.title,
+      description: event.description,
+    },
   };
 }
 

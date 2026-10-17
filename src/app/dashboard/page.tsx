@@ -7,6 +7,12 @@ import CadetDashboardClient from "./CadetDashboardClient";
 export const metadata: Metadata = {
   title: "Cadet Dashboard | NCC MIT WPU",
   description: "Personal training record, attendance tracker, and study materials for enrolled cadets.",
+  openGraph: {
+    title: "My NCC Dashboard - MIT WPU",
+    description: "Personal training record, attendance tracker, and study materials for enrolled cadets.",
+    type: "website",
+    locale: "en_IN",
+  },
 };
 
 export default async function DashboardPage() {

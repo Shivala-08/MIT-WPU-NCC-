@@ -7,6 +7,12 @@ import AdminClient from "./AdminClient";
 export const metadata: Metadata = {
   title: "Admin Command Center | NCC MIT WPU",
   description: "Unit management, cadet roster, parade attendance system, and study materials.",
+  openGraph: {
+    title: "NCC MIT WPU Admin Command Center",
+    description: "Unit management, cadet roster, parade attendance system, and study materials.",
+    type: "website",
+    locale: "en_IN",
+  },
 };
 
 export default async function AdminPage() {

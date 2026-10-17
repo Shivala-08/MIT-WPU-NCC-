@@ -17,6 +17,18 @@ export const metadata: Metadata = {
   title: "Activities & Training | NCC MIT WPU",
   description:
     "Explore training modules of the NCC Unit at MIT World Peace University: Drill, Firing, Camps, Adventure, Social Service, and Certificate examinations.",
+  openGraph: {
+    title: "NCC MIT WPU Activities & Training Curriculum",
+    description:
+      "Explore training modules: Drill, Firing, Camps, Adventure, Social Service, and Certificate exams.",
+    type: "website",
+    locale: "en_IN",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "NCC MIT WPU Activities & Training",
+    description: "Training modules: Drill, Firing, Camps, Adventure, Social Service.",
+  },
 };
 
 const activities = [
@@ -137,23 +149,23 @@ export default function ActivitiesPage() {
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       {/* Header */}
-      <section className="bg-ncc-dark-blue text-white py-16 mb-12">
+      <section className="bg-ncc-dark-blue text-white py-12 sm:py-16 mb-8 sm:mb-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-ncc-gold/20 text-ncc-gold text-xs font-semibold tracking-wider uppercase mb-4">
+          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-ncc-gold/20 text-ncc-gold text-xs font-semibold tracking-wider uppercase mb-3 sm:mb-4">
             <Shield className="w-3.5 h-3.5" /> Character & Discipline
           </span>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-heading font-black tracking-tight mb-4">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-heading font-black tracking-tight mb-3 sm:mb-4">
             Activities & Training Curriculum
           </h1>
-          <p className="max-w-3xl mx-auto text-white/70 text-base sm:text-lg">
+          <p className="max-w-3xl mx-auto text-white/70 text-sm sm:text-base lg:text-lg">
             Our training regimen shapes MIT WPU cadets into disciplined, compassionate, and patriotic leaders ready to serve the nation with honor.
           </p>
         </div>
       </section>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 sm:space-y-16">
         {/* Activities Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
           {activities.map((act) => {
             const Icon = act.icon;
             return (
@@ -173,18 +185,18 @@ export default function ActivitiesPage() {
                     </h3>
                   </div>
 
-                  <div className="p-6 flex-1 flex flex-col justify-between">
+                  <div className="p-4 sm:p-6 flex-1 flex flex-col justify-between">
                     <div>
-                      <p className="text-gray-600 text-sm leading-relaxed mb-6">
+                      <p className="text-gray-600 text-xs sm:text-sm leading-relaxed mb-4 sm:mb-6">
                         {act.description}
                       </p>
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2 sm:mb-3">
                         Training Highlights
                       </h4>
-                      <ul className="space-y-2 mb-6">
+                      <ul className="space-y-1.5 sm:space-y-2 mb-4 sm:mb-6">
                         {act.highlights.map((h, i) => (
                           <li key={i} className="flex items-start gap-2 text-xs sm:text-sm text-gray-700">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                            <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 shrink-0 mt-0.5" />
                             <span>{h}</span>
                           </li>
                         ))}
@@ -199,39 +211,39 @@ export default function ActivitiesPage() {
 
         {/* Certificate Breakdown Section */}
         <AnimatedSection>
-          <div className="bg-white rounded-3xl p-8 sm:p-12 border border-gray-200 shadow-sm">
-            <div className="text-center max-w-2xl mx-auto mb-10">
-              <span className="text-ncc-red font-bold text-sm tracking-widest uppercase">
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-6 sm:p-8 lg:p-12 border border-gray-200 shadow-sm">
+            <div className="text-center max-w-2xl mx-auto mb-6 sm:mb-8 lg:mb-10">
+              <span className="text-ncc-red font-bold text-xs sm:text-sm tracking-widest uppercase">
                 National Cadet Corps
               </span>
-              <h2 className="text-2xl sm:text-3xl font-heading font-black text-gray-900 mt-2">
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-heading font-black text-gray-900 mt-1 sm:mt-2">
                 Certification Spectrum
               </h2>
-              <p className="text-gray-600 text-sm mt-2">
+              <p className="text-gray-600 text-xs sm:text-sm mt-1 sm:mt-2">
                 Earning NCC certification is a distinguished privilege that directly elevates career opportunities in defense, civil services, and corporate roles.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 gap-4 sm:gap-6">
               {certificatesBreakdown.map((cert, index) => (
                 <div
                   key={index}
-                  className={`rounded-2xl p-6 border transition-all ${
+                  className={`rounded-2xl p-4 sm:p-6 border transition-all ${
                     index === 2
                       ? "border-amber-400 bg-amber-50/40 relative shadow-md"
                       : "border-gray-200 bg-gray-50/50"
                   }`}
                 >
                   {index === 2 && (
-                    <span className="absolute -top-3 right-6 bg-amber-500 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow">
+                    <span className="absolute -top-2.5 right-4 sm:right-6 bg-amber-500 text-white text-[10px] font-bold px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full uppercase tracking-wider shadow">
                       Elite Direct Entry
                     </span>
                   )}
-                  <h3 className="font-heading font-bold text-lg text-gray-900 mb-3 flex items-center gap-2">
-                    <Award className={`w-5 h-5 ${index === 2 ? "text-amber-600" : "text-ncc-dark-blue"}`} />
+                  <h3 className="font-heading font-bold text-base sm:text-lg text-gray-900 mb-2 sm:mb-3 flex items-center gap-2">
+                    <Award className={`w-4 h-4 sm:w-5 sm:h-5 ${index === 2 ? "text-amber-600" : "text-ncc-dark-blue"}`} />
                     {cert.grade}
                   </h3>
-                  <div className="space-y-3 text-xs sm:text-sm">
+                  <div className="space-y-2 sm:space-y-3 text-xs sm:text-sm">
                     <div>
                       <span className="font-semibold text-gray-700 block">Eligibility:</span>
                       <p className="text-gray-600">{cert.eligibility}</p>
@@ -249,27 +261,27 @@ export default function ActivitiesPage() {
               ))}
             </div>
 
-            <div className="mt-10 p-6 bg-ncc-dark-blue text-white rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="mt-6 sm:mt-8 lg:mt-10 p-4 sm:p-6 lg:p-8 bg-ncc-dark-blue text-white rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6">
               <div>
-                <h4 className="font-heading font-bold text-lg text-white">
+                <h4 className="font-heading font-bold text-base sm:text-lg text-white">
                   Ready to start your cadet journey?
                 </h4>
-                <p className="text-white/70 text-sm mt-1">
+                <p className="text-white/70 text-xs sm:text-sm mt-1">
                   Admissions are open for first-year and second-year MIT WPU students.
                 </p>
               </div>
-              <div className="flex gap-4">
+              <div className="flex gap-3 sm:gap-4">
                 <Link
                   href="/register"
-                  className="px-6 py-3 rounded-xl bg-ncc-red hover:bg-ncc-red-light font-bold text-white transition-all shadow-lg hover:shadow-ncc-red/30 text-sm shrink-0"
+                  className="px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-ncc-red hover:bg-ncc-red-light font-bold text-white transition-all shadow-lg hover:shadow-ncc-red/30 text-xs sm:text-sm shrink-0 touch-target"
                 >
                   Register Now
                 </Link>
                 <Link
                   href="/study-materials"
-                  className="px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 font-medium text-white transition-all text-sm shrink-0 flex items-center gap-1.5"
+                  className="px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl bg-white/10 hover:bg-white/20 font-medium text-white transition-all text-xs sm:text-sm shrink-0 flex items-center gap-1.5 touch-target"
                 >
-                  <BookOpen className="w-4 h-4" /> Study Notes
+                  <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Study Notes
                 </Link>
               </div>
             </div>

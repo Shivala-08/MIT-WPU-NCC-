@@ -17,6 +17,19 @@ export const metadata: Metadata = {
   title: "About Us",
   description:
     "Learn about the NCC Unit at MIT World Peace University, Pune — its history, aims, officers, and mission to develop discipline and leadership among youth.",
+  openGraph: {
+    title: "About NCC MIT WPU - History, Mission & Officers",
+    description:
+      "Learn about the NCC Unit at MIT World Peace University, Pune — its history, aims, officers, and mission.",
+    type: "website",
+    locale: "en_IN",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "About NCC MIT WPU",
+    description:
+      "History, mission, and officers of the NCC unit at MIT World Peace University.",
+  },
 };
 
 export default async function AboutPage() {

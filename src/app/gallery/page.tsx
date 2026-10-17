@@ -5,6 +5,17 @@ import GalleryClient from "./GalleryClient";
 export const metadata: Metadata = {
   title: "Gallery",
   description: "Photo gallery of NCC MIT WPU events, treks, camps, and activities.",
+  openGraph: {
+    title: "NCC MIT WPU Photo Gallery",
+    description: "Photo gallery of NCC MIT WPU events, treks, camps, and activities.",
+    type: "website",
+    locale: "en_IN",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "NCC MIT WPU Gallery",
+    description: "Photo gallery of NCC MIT WPU events, treks, camps, and activities.",
+  },
 };
 
 export default function GalleryPage() {

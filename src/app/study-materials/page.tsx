@@ -6,6 +6,17 @@ export const metadata: Metadata = {
   title: "Study Material | NCC MIT WPU",
   description:
     "Official NCC notes, drill manuals, weapon training handbooks, and Certificate A, B, and C exam papers for MIT WPU cadets.",
+  openGraph: {
+    title: "NCC MIT WPU Study Material & Syllabi",
+    description: "Official NCC notes, drill manuals, weapon training handbooks, and exam papers for cadets.",
+    type: "website",
+    locale: "en_IN",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "NCC MIT WPU Study Materials",
+    description: "Official NCC notes, drill manuals, weapon training handbooks, and exam papers.",
+  },
 };
 
 const defaultMaterials = [

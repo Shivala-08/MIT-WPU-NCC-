@@ -54,39 +54,39 @@ export default function ContactClient() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
+    <div className="min-h-screen bg-gray-50 py-8 sm:py-12">
       {/* Header Banner */}
-      <div className="bg-ncc-dark-blue text-white py-16 mb-12">
+      <div className="bg-ncc-dark-blue text-white py-12 sm:py-16 mb-8 sm:mb-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-ncc-gold/20 text-ncc-gold text-xs font-semibold tracking-wider uppercase mb-4">
+          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-ncc-gold/20 text-ncc-gold text-xs font-semibold tracking-wider uppercase mb-3 sm:mb-4">
             <Mail className="w-3.5 h-3.5" /> Communications
           </span>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-heading font-black tracking-tight mb-4">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-heading font-black tracking-tight mb-3 sm:mb-4">
             Contact NCC MIT WPU
           </h1>
-          <p className="max-w-2xl mx-auto text-white/70 text-base sm:text-lg">
+          <p className="max-w-2xl mx-auto text-white/70 text-sm sm:text-base lg:text-lg">
             Have questions about enrollments, training schedules, or camp activities? Get in touch with our unit leadership.
           </p>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-12">
           {/* Contact Details & Map */}
-          <div className="lg:col-span-5 space-y-8">
+          <div className="lg:col-span-5 space-y-6 sm:space-y-8">
             <AnimatedSection>
-              <div className="bg-white rounded-3xl p-8 border border-gray-200 shadow-sm space-y-6">
-                <h2 className="font-heading font-bold text-2xl text-gray-900 border-b pb-4">
+              <div className="bg-white rounded-2xl sm:rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-sm space-y-4 sm:space-y-6">
+                <h2 className="font-heading font-bold text-xl sm:text-2xl text-gray-900 border-b pb-3 sm:pb-4">
                   Unit Headquarters
                 </h2>
 
-                <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-2xl bg-ncc-red/10 text-ncc-red shrink-0">
-                    <MapPin className="w-6 h-6" />
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div className="p-2.5 sm:p-3 rounded-2xl bg-ncc-red/10 text-ncc-red shrink-0">
+                    <MapPin className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-900 text-sm">Campus Address</h3>
-                    <p className="text-gray-600 text-sm mt-1 leading-relaxed">
+                    <h3 className="font-bold text-gray-900 text-xs sm:text-sm">Campus Address</h3>
+                    <p className="text-gray-600 text-xs sm:text-sm mt-0.5 sm:mt-1 leading-relaxed">
                       MIT World Peace University (MIT-WPU)
                       <br />
                       S.No. 124, Paud Road, Kothrud,
@@ -96,13 +96,13 @@ export default function ContactClient() {
                   </div>
                 </div>
 
-                <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-2xl bg-ncc-dark-blue/10 text-ncc-dark-blue shrink-0">
-                    <Building2 className="w-6 h-6" />
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div className="p-2.5 sm:p-3 rounded-2xl bg-ncc-dark-blue/10 text-ncc-dark-blue shrink-0">
+                    <Building2 className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-900 text-sm">Affiliation & Group HQ</h3>
-                    <p className="text-gray-600 text-sm mt-1">
+                    <h3 className="font-bold text-gray-900 text-xs sm:text-sm">Affiliation & Group HQ</h3>
+                    <p className="text-gray-600 text-xs sm:text-sm mt-0.5 sm:mt-1">
                       NCC Group Headquarters, Pune
                       <br />
                       Maharashtra Directorate
@@ -110,43 +110,43 @@ export default function ContactClient() {
                   </div>
                 </div>
 
-                <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-2xl bg-ncc-light-blue/20 text-ncc-dark-blue shrink-0">
-                    <Mail className="w-6 h-6" />
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div className="p-2.5 sm:p-3 rounded-2xl bg-ncc-light-blue/20 text-ncc-dark-blue shrink-0">
+                    <Mail className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-900 text-sm">Email Inquiries</h3>
+                    <h3 className="font-bold text-gray-900 text-xs sm:text-sm">Email Inquiries</h3>
                     <a
                       href="mailto:ncc@mitwpu.edu.in"
-                      className="text-ncc-red hover:underline text-sm font-medium mt-1 block"
+                      className="text-ncc-red hover:underline text-xs sm:text-sm font-medium mt-0.5 sm:mt-1 block"
                     >
                       ncc@mitwpu.edu.in
                     </a>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-2xl bg-emerald-50 text-emerald-700 shrink-0">
-                    <Phone className="w-6 h-6" />
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div className="p-2.5 sm:p-3 rounded-2xl bg-emerald-50 text-emerald-700 shrink-0">
+                    <Phone className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-900 text-sm">Campus Helpline</h3>
+                    <h3 className="font-bold text-gray-900 text-xs sm:text-sm">Campus Helpline</h3>
                     <a
                       href="tel:+912025634000"
-                      className="text-gray-700 hover:text-ncc-red text-sm font-medium mt-1 block"
+                      className="text-gray-700 hover:text-ncc-red text-xs sm:text-sm font-medium mt-0.5 sm:mt-1 block"
                     >
                       +91 20 2563 4000
                     </a>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-4">
-                  <div className="p-3 rounded-2xl bg-amber-50 text-amber-700 shrink-0">
-                    <Clock className="w-6 h-6" />
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div className="p-2.5 sm:p-3 rounded-2xl bg-amber-50 text-amber-700 shrink-0">
+                    <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-900 text-sm">Parade & Office Timings</h3>
-                    <p className="text-gray-600 text-sm mt-1">
+                    <h3 className="font-bold text-gray-900 text-xs sm:text-sm">Parade & Office Timings</h3>
+                    <p className="text-gray-600 text-xs sm:text-sm mt-0.5 sm:mt-1">
                       Saturday Parades: 06:30 AM - 10:30 AM
                       <br />
                       Unit Office: Mon - Fri, 09:00 AM - 05:00 PM
@@ -158,19 +158,20 @@ export default function ContactClient() {
 
             {/* Embedded Map Container */}
             <AnimatedSection>
-              <div className="bg-white rounded-3xl overflow-hidden border border-gray-200 shadow-sm p-2">
-                <div className="p-4 border-b">
-                  <h3 className="font-heading font-bold text-gray-900 text-sm flex items-center gap-2">
+              <div className="bg-white rounded-2xl sm:rounded-3xl overflow-hidden border border-gray-200 shadow-sm p-1.5 sm:p-2">
+                <div className="p-3 sm:p-4 border-b">
+                  <h3 className="font-heading font-bold text-gray-900 text-xs sm:text-sm flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-ncc-red" /> Campus Map Location
                   </h3>
                 </div>
-                <div className="relative aspect-[16/10] w-full rounded-2xl overflow-hidden bg-gray-100">
+                <div className="relative aspect-[4/3] sm:aspect-[16/10] w-full rounded-2xl overflow-hidden bg-gray-100">
                   <iframe
                     title="MIT WPU Location Map"
                     src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3783.250392186981!2d73.81242397519163!3d18.51758998257489!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bc2bfb990000001%3A0x2db48f8c85c5bb99!2sMIT%20World%20Peace%20University!5e0!3m2!1sen!2sin!4v1700000000000!5m2!1sen!2sin"
                     className="absolute inset-0 w-full h-full border-0"
                     loading="lazy"
                     allowFullScreen
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   />
                 </div>
               </div>
@@ -180,15 +181,15 @@ export default function ContactClient() {
           {/* Contact Form */}
           <div className="lg:col-span-7">
             <AnimatedSection>
-              <div className="bg-white rounded-3xl p-8 sm:p-10 border border-gray-200 shadow-sm">
-                <div className="mb-8">
+              <div className="bg-white rounded-2xl sm:rounded-3xl p-6 sm:p-8 lg:p-10 border border-gray-200 shadow-sm">
+                <div className="mb-6 sm:mb-8">
                   <span className="text-ncc-red font-bold text-xs uppercase tracking-wider">
                     Direct Inquiry
                   </span>
-                  <h2 className="text-2xl font-heading font-bold text-gray-900 mt-1">
+                  <h2 className="text-xl sm:text-2xl font-heading font-bold text-gray-900 mt-1">
                     Send a Message to the Unit
                   </h2>
-                  <p className="text-gray-500 text-sm mt-1">
+                  <p className="text-gray-500 text-xs sm:text-sm mt-1">
                     Fill out the form below. Messages are recorded securely in the NCC unit registry and reviewed by officers.
                   </p>
                 </div>
@@ -212,46 +213,51 @@ export default function ContactClient() {
                   </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                      <label htmlFor="name" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 sm:mb-2">
                         Full Name *
                       </label>
                       <input
+                        id="name"
                         type="text"
+                        autoComplete="name"
                         required
                         value={formData.name}
                         onChange={(e) =>
                           setFormData({ ...formData, name: e.target.value })
                         }
                         placeholder="Cadet or Visitor Name"
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                      <label htmlFor="email" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 sm:mb-2">
                         Email Address *
                       </label>
                       <input
+                        id="email"
                         type="email"
+                        autoComplete="email"
                         required
                         value={formData.email}
                         onChange={(e) =>
                           setFormData({ ...formData, email: e.target.value })
                         }
                         placeholder="name@mitwpu.edu.in"
-                        className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red"
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                    <label htmlFor="subject" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 sm:mb-2">
                       Subject *
                     </label>
                     <input
+                      id="subject"
                       type="text"
                       required
                       value={formData.subject}
@@ -259,30 +265,31 @@ export default function ContactClient() {
                         setFormData({ ...formData, subject: e.target.value })
                       }
                       placeholder="e.g. Admission Inquiry / Camp Attendance Verification"
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red"
+                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                    <label htmlFor="message" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 sm:mb-2">
                       Detailed Message *
                     </label>
                     <textarea
-                      rows={5}
+                      id="message"
+                      rows={4}
                       required
                       value={formData.message}
                       onChange={(e) =>
                         setFormData({ ...formData, message: e.target.value })
                       }
                       placeholder="Type your message, roll number, or question here..."
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red resize-none"
+                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red resize-none"
                     />
                   </div>
 
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="w-full py-4 rounded-xl bg-ncc-red hover:bg-ncc-red-light disabled:opacity-50 text-white font-bold text-sm tracking-wide transition-all shadow-lg hover:shadow-ncc-red/30 flex items-center justify-center gap-2"
+                    className="w-full py-3 sm:py-4 rounded-xl bg-ncc-red hover:bg-ncc-red-light disabled:opacity-50 text-white font-bold text-sm tracking-wide transition-all shadow-lg hover:shadow-ncc-red/30 flex items-center justify-center gap-2 touch-target"
                   >
                     {isSubmitting ? (
                       <span className="inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />

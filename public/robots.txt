@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ncc.mitwpu.edu.in/sitemap.xml

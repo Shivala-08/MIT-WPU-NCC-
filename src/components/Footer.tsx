@@ -14,12 +14,12 @@ export default function Footer() {
       {/* Decorative top border */}
       <div className="h-1 bg-gradient-to-r from-ncc-red via-ncc-gold to-ncc-light-blue" />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 sm:gap-12">
           {/* Brand */}
           <div className="lg:col-span-1">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="relative w-14 h-14 rounded-full overflow-hidden border-2 border-ncc-gold/60">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden border-2 border-ncc-gold/60">
                 <Image
                   src="/images/logo/ncc-logo.png"
                   alt="NCC MIT WPU Logo"
@@ -29,18 +29,18 @@ export default function Footer() {
                 />
               </div>
               <div>
-                <h3 className="font-heading font-bold text-xl">NCC MIT WPU</h3>
+                <h3 className="font-heading font-bold text-lg sm:text-xl">NCC MIT WPU</h3>
                 <p className="text-ncc-gold text-xs tracking-wider font-medium">
                   Unity and Discipline
                 </p>
               </div>
             </div>
-            <p className="text-white/60 text-sm leading-relaxed mb-6">
+            <p className="text-white/60 text-sm leading-relaxed mb-4 sm:mb-6">
               The National Cadet Corps unit at MIT World Peace University, Pune,
               dedicated to developing character, comradeship, discipline,
               leadership, and the spirit of selfless service among the youth.
             </p>
-            <div className="flex gap-3">
+            <div className="flex gap-2 sm:gap-3">
               <a
                 href="#"
                 aria-label="Facebook"
@@ -74,10 +74,10 @@ export default function Footer() {
 
           {/* Quick Links */}
           <div>
-            <h4 className="font-heading font-bold text-lg mb-6 text-ncc-gold">
+            <h4 className="font-heading font-bold text-base sm:text-lg mb-4 sm:mb-6 text-ncc-gold">
               Quick Links
             </h4>
-            <ul className="space-y-3">
+            <ul className="space-y-2.5 sm:space-y-3">
               {[
                 { href: "/about", label: "About Us" },
                 { href: "/events", label: "Events" },
@@ -101,10 +101,10 @@ export default function Footer() {
 
           {/* Contact Info */}
           <div>
-            <h4 className="font-heading font-bold text-lg mb-6 text-ncc-gold">
+            <h4 className="font-heading font-bold text-base sm:text-lg mb-4 sm:mb-6 text-ncc-gold">
               Contact Us
             </h4>
-            <ul className="space-y-4">
+            <ul className="space-y-3 sm:space-y-4">
               <li className="flex gap-3 text-sm">
                 <MapPin className="w-5 h-5 text-ncc-red shrink-0 mt-0.5" />
                 <span className="text-white/60">
@@ -138,10 +138,10 @@ export default function Footer() {
 
           {/* NCC Info */}
           <div>
-            <h4 className="font-heading font-bold text-lg mb-6 text-ncc-gold">
+            <h4 className="font-heading font-bold text-base sm:text-lg mb-4 sm:mb-6 text-ncc-gold">
               NCC Directorate
             </h4>
-            <ul className="space-y-3 text-sm text-white/60">
+            <ul className="space-y-2 sm:space-y-3 text-sm text-white/60">
               <li>
                 <strong className="text-white/80">Group HQ:</strong> NCC Group
                 Headquarters, Pune
@@ -169,8 +169,8 @@ export default function Footer() {
 
       {/* Bottom Bar */}
       <div className="border-t border-white/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-white/40 text-xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-4">
+          <p className="text-white/40 text-xs text-center sm:text-left">
             © 2026 NCC Unit, MIT World Peace University, Pune. All rights reserved.
           </p>
           <p className="text-white/30 text-xs">

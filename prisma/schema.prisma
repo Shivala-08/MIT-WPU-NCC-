@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String
+  role          String    @default("CADET") // ADMIN or CADET
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  cadetProfile  CadetProfile?
+  attendances   Attendance[]
+}
+
+model CadetProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  fullName        String
+  regiNumber      String?
+  wing            String   // Army, Navy, Air
+  division        String?
+  year            String
+  branch          String
+  prn             String?
+  dob             DateTime
+  bloodGroup      String
+  gender          String
+  phone           String
+  address         String?
+  parentContact   String?
+  height          String?
+  weight          String?
+  photoUrl        String?
+  emergencyContact String?
+  
+  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Event {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  date        DateTime
+  description String
+  content     String   // Rich text / markdown content
+  thumbnail   String?
+  status      String   @default("UPCOMING") // UPCOMING, COMPLETED, CANCELLED
+  category    String   @default("General")
+  
+  images      EventImage[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model EventImage {
+  id       String @id @default(cuid())
+  url      String
+  caption  String?
+  eventId  String
+  event    Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model GalleryImage {
+  id        String   @id @default(cuid())
+  url       String
+  caption   String?
+  category  String   @default("General")
+  createdAt DateTime @default(now())
+}
+
+model AttendanceSession {
+  id        String   @id @default(cuid())
+  title     String
+  type      String   // Parade, Drill, Camp, Event
+  date      DateTime
+  startTime String?
+  endTime   String?
+  
+  attendances Attendance[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Attendance {
+  id        String   @id @default(cuid())
+  status    String   @default("ABSENT") // PRESENT, ABSENT, ON_DUTY, LEAVE
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  sessionId String
+  session   AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, sessionId])
+}
+
+model StudyMaterial {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  category    String   // Drill, Map Reading, Weapon Training, Leadership, Social Service, Certificate A, Certificate B, Certificate C
+  fileUrl     String
+  fileType    String   // PDF, DOCX, PPT, IMAGE, VIDEO
+  fileSize    Int?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  isActive  Boolean  @default(true)
+  priority  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Officer {
+  id          String  @id @default(cuid())
+  name        String
+  designation String  // ANO, CO, SUO, JUO, etc.
+  rank        String?
+  photoUrl    String?
+  bio         String?
+  order       Int     @default(0)
+  isActive    Boolean @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SiteStats {
+  id          String @id @default(cuid())
+  totalCadets Int    @default(0)
+  totalEvents Int    @default(0)
+  totalCamps  Int    @default(0)
+}

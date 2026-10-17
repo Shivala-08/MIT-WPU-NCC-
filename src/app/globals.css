@@ -1,0 +1,122 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap");
+@import "tailwindcss";
+
+@theme {
+  /* NCC Color Palette */
+  --color-ncc-red: #c41e3a;
+  --color-ncc-red-dark: #9a1830;
+  --color-ncc-red-light: #e8435c;
+  --color-ncc-dark-blue: #0a1628;
+  --color-ncc-navy: #1a2744;
+  --color-ncc-blue: #1e3a5f;
+  --color-ncc-light-blue: #4a90d9;
+  --color-ncc-sky: #87ceeb;
+  --color-ncc-gold: #d4a843;
+  --color-ncc-gold-light: #f0d68a;
+  --color-ncc-cream: #faf8f0;
+
+  /* Typography */
+  --font-heading: "Outfit", sans-serif;
+  --font-body: "Inter", sans-serif;
+}
+
+/* Base Styles */
+@layer base {
+  * {
+    @apply border-gray-200;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: var(--font-body);
+    @apply bg-white text-gray-900 antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+  }
+
+  ::selection {
+    @apply bg-ncc-red/20 text-ncc-red-dark;
+  }
+}
+
+/* Custom Scrollbar */
+@layer base {
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-100;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-ncc-navy/40 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-ncc-navy/60;
+  }
+}
+
+/* Custom Utilities */
+@layer utilities {
+  .text-gradient-ncc {
+    @apply bg-gradient-to-r from-ncc-red via-ncc-blue to-ncc-light-blue bg-clip-text text-transparent;
+  }
+
+  .bg-gradient-hero {
+    background: linear-gradient(135deg, var(--color-ncc-dark-blue) 0%, var(--color-ncc-navy) 40%, var(--color-ncc-blue) 100%);
+  }
+
+  .bg-gradient-card {
+    background: linear-gradient(145deg, rgba(255,255,255,0.95) 0%, rgba(250,248,240,0.9) 100%);
+  }
+
+  .glass-card {
+    @apply bg-white/80 backdrop-blur-lg border border-white/20 shadow-xl;
+  }
+
+  .glass-dark {
+    @apply bg-ncc-dark-blue/80 backdrop-blur-lg border border-white/10;
+  }
+}
+
+/* Animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulse-gold {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(212, 168, 67, 0.4); }
+  50% { box-shadow: 0 0 20px 5px rgba(212, 168, 67, 0.2); }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.1) 50%, transparent 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+.animate-pulse-gold {
+  animation: pulse-gold 2s ease-in-out infinite;
+}
+
+/* Loading skeleton */
+.skeleton {
+  @apply bg-gray-200 rounded animate-pulse;
+}

@@ -1,0 +1,303 @@
+"use client";
+
+import Link from "next/link";
+import {
+  Calendar,
+  MapPin,
+  Users,
+  Clock,
+  Target,
+  Heart,
+  Mountain,
+  ChevronLeft,
+  Award,
+  Droplets,
+  CheckCircle,
+} from "lucide-react";
+import { AnimatedSection, StaggerContainer, StaggerItem } from "@/components/AnimatedSection";
+import LightboxGallery from "@/components/LightboxGallery";
+
+interface EventDetailClientProps {
+  event: {
+    title: string;
+    slug: string;
+    date: string;
+    status: string;
+    category: string;
+    description: string;
+  };
+  contentData: Record<string, unknown>;
+  galleryImages: { src: string; alt: string; caption: string; category: string }[];
+}
+
+export default function EventDetailClient({
+  event,
+  contentData,
+  galleryImages,
+}: EventDetailClientProps) {
+  const isTrek = event.slug === "trek-to-korigad-fort";
+  const isBlood = event.slug === "blood-donation-camp";
+
+  return (
+    <>
+      {/* Hero */}
+      <section className="relative pt-28 pb-16 bg-gradient-hero">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <Link
+            href="/events"
+            className="inline-flex items-center gap-2 text-white/60 hover:text-white text-sm mb-6 transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" /> Back to Events
+          </Link>
+          <AnimatedSection>
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <span className="px-3 py-1 text-xs font-bold bg-green-500 text-white rounded-full">
+                ✅ Completed
+              </span>
+              <span className="px-3 py-1 text-xs font-medium bg-white/10 text-white/80 rounded-full border border-white/20">
+                {event.category}
+              </span>
+            </div>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-heading font-bold text-white mb-4">
+              {event.title}
+            </h1>
+            <div className="flex flex-wrap items-center gap-6 text-white/60">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-ncc-gold" />
+                <span>
+                  {new Date(event.date).toLocaleDateString("en-IN", {
+                    weekday: "long",
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </span>
+              </div>
+              {isTrek && (
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-ncc-gold" />
+                  <span>Korigad Fort, Sahyadri Range, Pune</span>
+                </div>
+              )}
+              {isBlood && (
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-ncc-gold" />
+                  <span>MIT WPU Campus, Pune</span>
+                </div>
+              )}
+            </div>
+          </AnimatedSection>
+        </div>
+      </section>
+
+      {/* Content */}
+      <section className="py-16 bg-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Overview */}
+          <AnimatedSection>
+            <h2 className="text-2xl font-heading font-bold text-ncc-dark-blue mb-4">
+              Overview
+            </h2>
+            <p className="text-gray-600 leading-relaxed text-lg">
+              {contentData.overview as string}
+            </p>
+          </AnimatedSection>
+
+          {/* Trek specific content */}
+          {isTrek && (
+            <>
+              <AnimatedSection className="mt-12">
+                <h2 className="text-2xl font-heading font-bold text-ncc-dark-blue mb-4 flex items-center gap-3">
+                  <Mountain className="w-6 h-6 text-ncc-red" />
+                  About Korigad Fort
+                </h2>
+                <p className="text-gray-600 leading-relaxed">
+                  {contentData.aboutFort as string}
+                </p>
+              </AnimatedSection>
+
+              <AnimatedSection className="mt-12">
+                <h2 className="text-2xl font-heading font-bold text-ncc-dark-blue mb-6 flex items-center gap-3">
+                  <Target className="w-6 h-6 text-ncc-red" />
+                  Objectives
+                </h2>
+                <div className="space-y-3">
+                  {(contentData.objectives as string[]).map((obj, i) => (
+                    <div
+                      key={i}
+                      className="flex items-start gap-3 p-4 bg-ncc-cream rounded-xl"
+                    >
+                      <CheckCircle className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
+                      <p className="text-gray-700">{obj}</p>
+                    </div>
+                  ))}
+                </div>
+              </AnimatedSection>
+
+              <AnimatedSection className="mt-12">
+                <h2 className="text-2xl font-heading font-bold text-ncc-dark-blue mb-6 flex items-center gap-3">
+                  <Clock className="w-6 h-6 text-ncc-red" />
+                  Day Schedule
+                </h2>
+                <div className="space-y-0">
+                  {(contentData.schedule as { time: string; activity: string }[]).map((item, i) => (
+                    <div key={i} className="flex gap-4 group">
+                      <div className="flex flex-col items-center">
+                        <div className="w-3 h-3 bg-ncc-red rounded-full border-2 border-white shadow" />
+                        {i < (contentData.schedule as unknown[]).length - 1 && (
+                          <div className="w-0.5 h-full bg-ncc-red/20 min-h-[40px]" />
+                        )}
+                      </div>
+                      <div className="pb-6">
+                        <span className="text-ncc-red font-bold text-sm">
+                          {item.time}
+                        </span>
+                        <p className="text-gray-700 mt-1">{item.activity}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </AnimatedSection>
+
+              <AnimatedSection className="mt-12">
+                <div className="bg-ncc-cream rounded-2xl p-8 border border-ncc-gold/20 text-center">
+                  <Users className="w-10 h-10 text-ncc-gold mx-auto mb-3" />
+                  <p className="text-3xl font-heading font-black text-ncc-dark-blue">
+                    {contentData.cadetsParticipated as number}
+                  </p>
+                  <p className="text-gray-600 text-sm mt-1">
+                    Cadets Participated
+                  </p>
+                </div>
+              </AnimatedSection>
+
+              <AnimatedSection className="mt-12">
+                <h2 className="text-2xl font-heading font-bold text-ncc-dark-blue mb-6 flex items-center gap-3">
+                  <Award className="w-6 h-6 text-ncc-gold" />
+                  Key Learnings
+                </h2>
+                <StaggerContainer className="space-y-3">
+                  {(contentData.keyLearnings as string[]).map((learning, i) => (
+                    <StaggerItem key={i}>
+                      <div className="flex items-start gap-3 p-4 bg-white rounded-xl shadow-sm border border-gray-100">
+                        <span className="w-7 h-7 bg-ncc-gold/10 rounded-full flex items-center justify-center text-sm font-bold text-ncc-gold shrink-0">
+                          {i + 1}
+                        </span>
+                        <p className="text-gray-700">{learning}</p>
+                      </div>
+                    </StaggerItem>
+                  ))}
+                </StaggerContainer>
+              </AnimatedSection>
+            </>
+          )}
+
+          {/* Blood Donation specific content */}
+          {isBlood && (
+            <>
+              <AnimatedSection className="mt-12">
+                <h2 className="text-2xl font-heading font-bold text-ncc-dark-blue mb-4 flex items-center gap-3">
+                  <Heart className="w-6 h-6 text-ncc-red" />
+                  Purpose
+                </h2>
+                <p className="text-gray-600 leading-relaxed">
+                  {contentData.purpose as string}
+                </p>
+                <div className="mt-4 p-4 bg-ncc-red/5 rounded-xl border border-ncc-red/10">
+                  <p className="text-ncc-red font-semibold text-center text-lg italic">
+                    &quot;Blood Donation is Life Donation&quot;
+                  </p>
+                </div>
+              </AnimatedSection>
+
+              <AnimatedSection className="mt-12">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  <div className="bg-ncc-cream rounded-2xl p-6 text-center border border-ncc-gold/20">
+                    <Heart className="w-8 h-8 text-ncc-red mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">Organising Partner</p>
+                    <p className="text-lg font-heading font-bold text-ncc-dark-blue mt-1">
+                      {contentData.organisingPartner as string}
+                    </p>
+                  </div>
+                  <div className="bg-ncc-cream rounded-2xl p-6 text-center border border-ncc-gold/20">
+                    <Users className="w-8 h-8 text-ncc-gold mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">Total Donors</p>
+                    <p className="text-3xl font-heading font-black text-ncc-dark-blue mt-1">
+                      {contentData.totalDonors as number}
+                    </p>
+                  </div>
+                  <div className="bg-ncc-cream rounded-2xl p-6 text-center border border-ncc-gold/20">
+                    <Droplets className="w-8 h-8 text-ncc-red mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">Units Collected</p>
+                    <p className="text-3xl font-heading font-black text-ncc-dark-blue mt-1">
+                      {contentData.unitsCollected as number}
+                    </p>
+                  </div>
+                </div>
+              </AnimatedSection>
+
+              {contentData.highlights && (
+                <AnimatedSection className="mt-12">
+                  <h2 className="text-2xl font-heading font-bold text-ncc-dark-blue mb-6">
+                    Highlights
+                  </h2>
+                  <div className="space-y-3">
+                    {(contentData.highlights as string[]).map((h, i) => (
+                      <div key={i} className="flex items-start gap-3 p-4 bg-ncc-cream rounded-xl">
+                        <CheckCircle className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
+                        <p className="text-gray-700">{h}</p>
+                      </div>
+                    ))}
+                  </div>
+                </AnimatedSection>
+              )}
+
+              <AnimatedSection className="mt-12">
+                <div className="bg-gradient-to-br from-ncc-cream to-white rounded-2xl p-8 border border-ncc-gold/20">
+                  <h3 className="text-xl font-heading font-bold text-ncc-dark-blue mb-4 flex items-center gap-2">
+                    <Award className="w-5 h-5 text-ncc-gold" />
+                    Appreciation
+                  </h3>
+                  <p className="text-gray-600 leading-relaxed italic">
+                    &quot;{contentData.appreciationMessage as string}&quot;
+                  </p>
+                </div>
+              </AnimatedSection>
+            </>
+          )}
+
+          {/* Photo Gallery */}
+          {galleryImages.length > 0 && (
+            <AnimatedSection className="mt-16">
+              <h2 className="text-2xl font-heading font-bold text-ncc-dark-blue mb-8">
+                📸 Photo Gallery
+              </h2>
+              <LightboxGallery
+                images={galleryImages.map((img) => ({
+                  src: img.src,
+                  alt: img.alt,
+                  caption: img.caption,
+                }))}
+                columns={3}
+              />
+            </AnimatedSection>
+          )}
+
+          {galleryImages.length === 0 && (
+            <AnimatedSection className="mt-16">
+              <div className="text-center py-12 bg-gray-50 rounded-2xl">
+                <p className="text-gray-500">
+                  📷 Photos will be displayed here. Add images to the{" "}
+                  <code className="bg-gray-200 px-2 py-0.5 rounded text-sm">
+                    /public/images/{isTrek ? "trek" : "blood-donation"}/
+                  </code>{" "}
+                  folder.
+                </p>
+              </div>
+            </AnimatedSection>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}

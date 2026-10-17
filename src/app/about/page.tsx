@@ -1,0 +1,43 @@
+import { Metadata } from "next";
+import Image from "next/image";
+import {
+  Shield,
+  Target,
+  Users,
+  Award,
+  Heart,
+  Mountain,
+  Flag,
+  Star,
+} from "lucide-react";
+import prisma from "@/lib/prisma";
+import AboutClient from "./AboutClient";
+
+export const metadata: Metadata = {
+  title: "About Us",
+  description:
+    "Learn about the NCC Unit at MIT World Peace University, Pune — its history, aims, officers, and mission to develop discipline and leadership among youth.",
+};
+
+export default async function AboutPage() {
+  let officers: {
+    id: string;
+    name: string;
+    designation: string;
+    rank: string | null;
+    photoUrl: string | null;
+    bio: string | null;
+    order: number;
+  }[] = [];
+
+  try {
+    officers = await prisma.officer.findMany({
+      where: { isActive: true },
+      orderBy: { order: "asc" },
+    });
+  } catch {
+    // DB not ready
+  }
+
+  return <AboutClient officers={officers} />;
+}

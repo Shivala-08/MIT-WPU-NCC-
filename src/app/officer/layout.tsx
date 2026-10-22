@@ -8,7 +8,7 @@ export default async function OfficerLayout({
 }) {
   const session = await auth();
 
-  if (!session?.user?.id || !["ADMIN", "OFFICER"].includes(session.user.role)) {
+  if (!session?.user?.id || !session?.user?.role || !["ADMIN", "OFFICER"].includes(session.user.role)) {
     redirect("/login");
   }
 

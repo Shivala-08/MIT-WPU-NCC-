@@ -10,7 +10,7 @@ export default async function OfficerPage() {
     redirect("/login");
   }
 
-  if (!["ADMIN", "OFFICER"].includes(session.user.role)) {
+  if (!session?.user?.role || !["ADMIN", "OFFICER"].includes(session.user.role)) {
     redirect("/dashboard");
   }
 

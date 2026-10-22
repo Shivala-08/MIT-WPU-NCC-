@@ -59,7 +59,7 @@ export default function LightboxGallery({
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: index * 0.05 }}
-            className="group relative aspect-[4/3] sm:aspect-[3/2] rounded-xl overflow-hidden cursor-pointer bg-gray-100 touch-target"
+            className="group relative aspect-4-3 sm:aspect-3-2 rounded-xl overflow-hidden cursor-pointer bg-gray-100 touch-target"
             onClick={() => openLightbox(index)}
             tabIndex={0}
             role="button"

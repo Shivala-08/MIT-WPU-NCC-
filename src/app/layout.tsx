@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import AuthProvider from "@/components/AuthProvider";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import RootLayoutClient from "@/components/RootLayoutClient";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://ncc.mitwpu.edu.in"),
@@ -35,7 +34,7 @@ export const metadata: Metadata = {
     siteName: "NCC MIT WPU",
     images: [
       {
-        url: "/images/logo/ncc-logo.png",
+        url: "/opengraph-image",
         width: 1200,
         height: 630,
         alt: "NCC MIT WPU Logo",
@@ -54,6 +53,11 @@ export const metadata: Metadata = {
     apple: "/icon.png",
   },
   manifest: "/manifest.json",
+  other: {
+    "security": [
+      "strict-origin-when-cross-origin",
+    ],
+  },
 };
 
 export const viewport: Viewport = {
@@ -79,9 +83,7 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         <AuthProvider>
-          <Navbar />
-          <main className="min-h-screen">{children}</main>
-          <Footer />
+          <RootLayoutClient>{children}</RootLayoutClient>
         </AuthProvider>
       </body>
     </html>

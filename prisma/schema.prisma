@@ -3,76 +3,70 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String
-  email         String    @unique
-  password      String
-  role          String    @default("CADET") // ADMIN or CADET
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  cadetProfile  CadetProfile?
-  attendances   Attendance[]
+  id           String        @id @default(cuid())
+  name         String
+  email        String        @unique
+  password     String
+  role         String        @default("CADET")
+  image        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  attendances  Attendance[]
+  cadetProfile CadetProfile?
 }
 
 model CadetProfile {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  fullName        String
-  regiNumber      String?
-  wing            String   // Army, Navy, Air
-  division        String?
-  year            String
-  branch          String
-  prn             String?
-  dob             DateTime
-  bloodGroup      String
-  gender          String
-  phone           String
-  address         String?
-  parentContact   String?
-  height          String?
-  weight          String?
-  photoUrl        String?
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  fullName         String
+  regiNumber       String?
+  wing             String
+  division         String?
+  year             String
+  branch           String
+  prn              String?
+  dob              DateTime
+  bloodGroup       String
+  gender           String
+  phone            String
+  address          String?
+  parentContact    String?
+  height           String?
+  weight           String?
+  photoUrl         String?
   emergencyContact String?
-  
-  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  status           String   @default("PENDING")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Event {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
   title       String
-  slug        String   @unique
+  slug        String       @unique
   date        DateTime
   description String
-  content     String   // Rich text / markdown content
+  content     String
   thumbnail   String?
-  status      String   @default("UPCOMING") // UPCOMING, COMPLETED, CANCELLED
-  category    String   @default("General")
-  
+  status      String       @default("UPCOMING")
+  category    String       @default("General")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
   images      EventImage[]
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 }
 
 model EventImage {
-  id       String @id @default(cuid())
-  url      String
-  caption  String?
-  eventId  String
-  event    Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  id      String  @id @default(cuid())
+  url     String
+  caption String?
+  eventId String
+  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
 }
 
 model GalleryImage {
@@ -84,31 +78,26 @@ model GalleryImage {
 }
 
 model AttendanceSession {
-  id        String   @id @default(cuid())
-  title     String
-  type      String   // Parade, Drill, Camp, Event
-  date      DateTime
-  startTime String?
-  endTime   String?
-  
+  id          String       @id @default(cuid())
+  title       String
+  type        String
+  date        DateTime
+  startTime   String?
+  endTime     String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
   attendances Attendance[]
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
 
 model Attendance {
-  id        String   @id @default(cuid())
-  status    String   @default("ABSENT") // PRESENT, ABSENT, ON_DUTY, LEAVE
-  
+  id        String            @id @default(cuid())
+  status    String            @default("ABSENT")
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
   sessionId String
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
   session   AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, sessionId])
 }
@@ -117,11 +106,10 @@ model StudyMaterial {
   id          String   @id @default(cuid())
   title       String
   description String?
-  category    String   // Drill, Map Reading, Weapon Training, Leadership, Social Service, Certificate A, Certificate B, Certificate C
+  category    String
   fileUrl     String
-  fileType    String   // PDF, DOCX, PPT, IMAGE, VIDEO
+  fileType    String
   fileSize    Int?
-  
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -147,15 +135,14 @@ model Announcement {
 }
 
 model Officer {
-  id          String  @id @default(cuid())
+  id          String   @id @default(cuid())
   name        String
-  designation String  // ANO, CO, SUO, JUO, etc.
+  designation String
   rank        String?
   photoUrl    String?
   bio         String?
-  order       Int     @default(0)
-  isActive    Boolean @default(true)
-  
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

@@ -21,6 +21,16 @@ export default function LoginClient() {
     setError("");
 
     try {
+      // Clear any existing session first using next-auth signOut
+      await fetch("/api/auth/signout", { 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ callbackUrl: "/login" })
+      });
+      
+      // Small delay to ensure cookie is cleared
+      await new Promise((r) => setTimeout(r, 100));
+      
       const res = await signIn("credentials", {
         email: email.trim().toLowerCase(),
         password,
@@ -30,17 +40,24 @@ export default function LoginClient() {
       if (res?.error) {
         setError("Invalid email or password. Please verify your credentials.");
         setIsLoading(false);
-      } else {
-        // Fetch session to determine role redirect
-        const sessionRes = await fetch("/api/auth/session");
-        const sessionData = await sessionRes.json();
-        if (sessionData?.user?.role === "ADMIN") {
-          router.push("/admin");
-        } else {
-          router.push("/dashboard");
-        }
-        router.refresh();
+        return;
       }
+
+      // Session might not be ready immediately, retry a few times
+      let sessionData = null;
+      for (let i = 0; i < 3; i++) {
+        await new Promise((r) => setTimeout(r, 300));
+        const sessionRes = await fetch("/api/auth/session");
+        sessionData = await sessionRes.json();
+        if (sessionData?.user?.role) break;
+      }
+
+      if (sessionData?.user?.role === "ADMIN") {
+        router.push("/admin");
+      } else {
+        router.push("/dashboard");
+      }
+      router.refresh();
     } catch {
       setError("An error occurred during sign-in. Please try again.");
       setIsLoading(false);
@@ -112,7 +129,7 @@ export default function LoginClient() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@ncc-mitwpu.edu.in"
-                className="w-full pl-9 sm:pl-11 pr-4 py-2.5 sm:py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red"
+                className="w-full pl-9 sm:pl-11 pr-4 py-2.5 sm:py-3 rounded-xl border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red"
               />
             </div>
           </div>
@@ -131,7 +148,7 @@ export default function LoginClient() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-9 sm:pl-11 pr-4 py-2.5 sm:py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red"
+                className="w-full pl-9 sm:pl-11 pr-4 py-2.5 sm:py-3 rounded-xl border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red"
               />
             </div>
           </div>

@@ -4,9 +4,10 @@ import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
+  session: { strategy: "jwt", maxAge: 60 * 60 },
   pages: {
     signIn: "/login",
+    signOut: "/login",
   },
   providers: [
     CredentialsProvider({
@@ -69,7 +70,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   cookies: {
     sessionToken: {
-      name: `__Secure-next-auth.session-token`,
+      name: process.env.NODE_ENV === "production" ? `__Secure-next-auth.session-token` : `next-auth.session-token`,
       options: {
         httpOnly: true,
         sameSite: "lax",
@@ -78,4 +79,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
     },
   },
+  // Disable CSRF check for signout to allow proper session clearing
+  trustHost: true,
 });

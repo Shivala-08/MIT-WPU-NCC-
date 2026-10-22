@@ -28,15 +28,8 @@ const navLinks = [
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
   const pathname = usePathname();
   const { data: session } = useSession();
-
-  useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
 
   useEffect(() => {
     setIsOpen(false);
@@ -46,11 +39,7 @@ export default function Navbar() {
     <motion.header
       initial={{ y: -100 }}
       animate={{ y: 0 }}
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-        scrolled
-          ? "bg-ncc-dark-blue/95 backdrop-blur-xl shadow-2xl shadow-black/20 py-2"
-          : "bg-transparent py-4"
-      }`}
+      className="fixed top-0 left-0 right-0 z-50 bg-ncc-dark-blue/95 backdrop-blur-xl shadow-2xl shadow-black/20 py-2"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
@@ -129,7 +118,7 @@ export default function Navbar() {
                       </Link>
                     )}
                     <button
-                      onClick={() => signOut()}
+                      onClick={() => signOut({ callbackUrl: "/login" })}
                       className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors touch-target"
                     >
                       <LogOut className="w-4 h-4" />
@@ -202,7 +191,7 @@ export default function Navbar() {
                       {session.user.role === "ADMIN" ? "Admin Panel" : "Dashboard"}
                     </Link>
                     <button
-                      onClick={() => signOut()}
+                      onClick={() => signOut({ callbackUrl: "/login" })}
                       className="block w-full text-left px-4 py-3.5 text-base text-red-400 hover:bg-red-500/10 rounded-lg touch-target"
                     >
                       Sign Out

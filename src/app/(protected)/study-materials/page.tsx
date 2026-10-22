@@ -1,4 +1,6 @@
 import { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import StudyMaterialsClient from "./StudyMaterialsClient";
 
@@ -104,7 +106,33 @@ const defaultMaterials = [
 ];
 
 export default async function StudyMaterialsPage() {
-  let dbMaterials: any[] = [];
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
+  // Only allow approved cadets and admins/officers
+  if (session.user.role === "CADET") {
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      include: { cadetProfile: true },
+    });
+
+    if (!user?.cadetProfile || user.cadetProfile.status !== "APPROVED") {
+      redirect("/dashboard/status");
+    }
+  }
+
+  let dbMaterials: {
+    id: string;
+    title: string;
+    description: string | null;
+    category: string;
+    fileUrl: string;
+    fileType: string;
+    fileSize: number | null;
+  }[] = [];
   try {
     dbMaterials = await prisma.studyMaterial.findMany({
       orderBy: { createdAt: "desc" },

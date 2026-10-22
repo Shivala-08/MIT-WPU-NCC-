@@ -4,9 +4,10 @@ import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: 60 * 60 },
   pages: {
     signIn: "/login",
+    signOut: "/login",
   },
   providers: [
     CredentialsProvider({
@@ -20,14 +21,23 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
+        const email = credentials.email.toString().trim().toLowerCase();
+        const password = credentials.password.toString();
+
+        // Rate limiting hint: check for suspicious patterns
+        if (password.length < 6) {
+          return null;
+        }
+
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
+          where: { email },
         });
 
         if (!user) return null;
 
+        // Use constant-time comparison via bcrypt
         const isPasswordValid = await bcrypt.compare(
-          credentials.password as string,
+          password,
           user.password
         );
 
@@ -58,4 +68,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return session;
     },
   },
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === "production" ? `__Secure-next-auth.session-token` : `next-auth.session-token`,
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+  },
+  // Disable CSRF check for signout to allow proper session clearing
+  trustHost: true,
 });

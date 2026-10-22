@@ -47,20 +47,24 @@ export default function LightboxGallery({
   const gridCols = {
     2: "grid-cols-1 sm:grid-cols-2",
     3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
-    4: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4",
+    4: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
   };
 
   return (
     <>
-      <div className={`grid ${gridCols[columns]} gap-4`}>
+      <div className={`grid ${gridCols[columns]} gap-3 sm:gap-4`} role="list">
         {images.map((image, index) => (
           <motion.div
             key={index}
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: index * 0.05 }}
-            className="group relative aspect-[4/3] rounded-xl overflow-hidden cursor-pointer bg-gray-100"
+            className="group relative aspect-4-3 sm:aspect-3-2 rounded-xl overflow-hidden cursor-pointer bg-gray-100 touch-target"
             onClick={() => openLightbox(index)}
+            tabIndex={0}
+            role="button"
+            aria-label={`View ${image.alt}`}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLightbox(index); } }}
           >
             <Image
               src={image.src}
@@ -133,7 +137,7 @@ export default function LightboxGallery({
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ duration: 0.2 }}
-              className="relative max-w-[90vw] max-h-[85vh] w-full h-full"
+              className="relative max-w-[95vw] max-h-[80vh] sm:max-h-[85vh] w-full h-full"
               onClick={(e) => e.stopPropagation()}
             >
               <Image
@@ -147,16 +151,16 @@ export default function LightboxGallery({
 
             {/* Caption */}
             {images[selectedIndex].caption && (
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 bg-black/60 backdrop-blur-lg rounded-xl">
-                <p className="text-white text-sm text-center">
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 sm:bottom-6 sm:px-6 sm:py-3 bg-black/60 backdrop-blur-lg rounded-xl">
+                <p className="text-white text-xs sm:text-sm text-center">
                   {images[selectedIndex].caption}
                 </p>
               </div>
             )}
 
             {/* Counter */}
-            <div className="absolute top-4 left-4 px-3 py-1.5 bg-black/40 backdrop-blur rounded-lg">
-              <p className="text-white/80 text-sm">
+            <div className="absolute top-3 sm:top-4 left-3 sm:left-4 px-2 sm:px-3 py-1 sm:py-1.5 bg-black/40 backdrop-blur rounded-lg">
+              <p className="text-white/80 text-xs sm:text-sm">
                 {selectedIndex + 1} / {images.length}
               </p>
             </div>

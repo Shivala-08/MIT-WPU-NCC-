@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import * as XLSX from "xlsx";
+
 import {
   Shield,
   Users,
@@ -11,7 +11,7 @@ import {
   BookOpen,
   Bell,
   Mail,
-  Download,
+  
   Plus,
   Trash2,
   CheckCircle,
@@ -162,10 +162,7 @@ export default function AdminClient({
       "Parent Contact": c.cadetProfile?.parentContact || "N/A",
     }));
 
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "NCC_Cadets");
-    XLSX.writeFile(workbook, `NCC_MITWPU_Cadets_${new Date().toISOString().split("T")[0]}.xlsx`);
+    window.location.href = "/api/admin/cadets/export";
     showToast("Excel spreadsheet downloaded successfully");
   };
 

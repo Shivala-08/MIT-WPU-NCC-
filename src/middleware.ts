@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
+import { getUser } from "@/lib/guard";
 
 export async function middleware(req: Request) {
   const { pathname } = new URL(req.url);
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-  const isLoggedIn = !!token;
-  const userRole = (token as { role?: string })?.role;
+  const user = await getUser();
+  const isLoggedIn = !!user;
+  const userRole = user?.role as "ADMIN" | "OFFICER" | "CADET" | undefined;
 
-  // Admin routes
+  // Admin routes - allow ADMIN and OFFICER
   if (pathname.startsWith("/admin")) {
     if (!isLoggedIn) {
       return NextResponse.redirect(new URL("/login", req.url));
     }
-    if (userRole !== "ADMIN") {
+    if (userRole !== "ADMIN" && userRole !== "OFFICER") {
       return NextResponse.redirect(new URL("/", req.url));
     }
   }
@@ -21,6 +21,16 @@ export async function middleware(req: Request) {
   if (pathname.startsWith("/dashboard")) {
     if (!isLoggedIn) {
       return NextResponse.redirect(new URL("/login", req.url));
+    }
+  }
+
+  // Officer dashboard routes
+  if (pathname.startsWith("/officer")) {
+    if (!isLoggedIn) {
+      return NextResponse.redirect(new URL("/login", req.url));
+    }
+    if (userRole !== "ADMIN" && userRole !== "OFFICER") {
+      return NextResponse.redirect(new URL("/", req.url));
     }
   }
 
@@ -35,5 +45,5 @@ export async function middleware(req: Request) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/dashboard/:path*", "/api/study-materials/download/:path*"],
+  matcher: ["/admin/:path*", "/officer/:path*", "/dashboard/:path*", "/api/study-materials/download/:path*"],
 };

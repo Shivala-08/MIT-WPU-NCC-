@@ -6,49 +6,65 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("🌱 Seeding database...");
 
-  // Create default admin
-  const hashedPassword = await bcrypt.hash("admin123", 12);
+  // Create default admin - password from env, refuse weak passwords
+  const adminEmail = process.env.SEED_ADMIN_EMAIL || "admin@ncc-mitwpu.edu.in";
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD;
+
+  if (!adminPassword || adminPassword.length < 12) {
+    throw new Error("SEED_ADMIN_PASSWORD must be set and at least 12 characters");
+  }
+
+  const hashedPassword = await bcrypt.hash(adminPassword, 12);
   const admin = await prisma.user.upsert({
-    where: { email: "admin@ncc-mitwpu.edu.in" },
+    where: { email: adminEmail },
     update: {},
     create: {
       name: "NCC Admin",
-      email: "admin@ncc-mitwpu.edu.in",
+      email: adminEmail,
       password: hashedPassword,
       role: "ADMIN",
     },
   });
   console.log("✅ Admin user created:", admin.email);
 
-  // Create sample cadet
-  const cadetPassword = await bcrypt.hash("cadet123", 12);
-  const cadet = await prisma.user.upsert({
-    where: { email: "cadet@mitwpu.edu.in" },
-    update: {},
-    create: {
-      name: "Sample Cadet",
-      email: "cadet@mitwpu.edu.in",
-      password: cadetPassword,
-      role: "CADET",
-      cadetProfile: {
-        create: {
-          fullName: "Sample Cadet",
-          wing: "Army",
-          division: "SD",
-          year: "2nd Year",
-          branch: "Computer Science",
-          prn: "PRN001234",
-          dob: new Date("2004-05-15"),
-          bloodGroup: "O+",
-          gender: "Male",
-          phone: "9876543210",
-          address: "MIT WPU Campus, Pune",
-          status: "APPROVED",
+  // Create sample cadet only if explicitly enabled
+  if (process.env.SEED_CREATE_CADET === "true") {
+    const cadetEmail = process.env.SEED_CADET_EMAIL || "cadet@mitwpu.edu.in";
+    const cadetPassword = process.env.SEED_CADET_PASSWORD;
+
+    if (!cadetPassword || cadetPassword.length < 12) {
+      throw new Error("SEED_CADET_PASSWORD must be set and at least 12 characters");
+    }
+
+    const cadetPasswordHash = await bcrypt.hash(cadetPassword, 12);
+    const cadet = await prisma.user.upsert({
+      where: { email: cadetEmail },
+      update: {},
+      create: {
+        name: "Sample Cadet",
+        email: cadetEmail,
+        password: cadetPasswordHash,
+        role: "CADET",
+        cadetProfile: {
+          create: {
+            fullName: "Sample Cadet",
+            wing: "Army",
+            division: "SD",
+            year: "2nd Year",
+            branch: "Computer Science",
+            prn: "PRN001234",
+            dob: new Date("2004-05-15"),
+            bloodGroup: "O+",
+            gender: "Male",
+            phone: "9876543210",
+            address: "MIT WPU Campus, Pune",
+            status: "APPROVED",
+          },
         },
       },
-    },
-  });
-  console.log("✅ Sample cadet created:", cadet.email);
+    });
+    console.log("✅ Sample cadet created:", cadet.email);
+  }
 
   // Create events
   const trekEvent = await prisma.event.upsert({
@@ -134,7 +150,7 @@ async function main() {
   });
   console.log("✅ Blood donation event created:", bloodEvent.title);
 
-  // Create officers (placeholders)
+  // Create officers (placeholders - replace with real data)
   const officers = [
     { id: "officer-ano", name: "Lt. Col. [Name]", designation: "ANO", rank: "Lieutenant Colonel", bio: "Associate NCC Officer heading the MIT WPU NCC Unit", order: 1 },
     { id: "officer-co", name: "Capt. [Name]", designation: "CO", rank: "Captain", bio: "Company Commander of the MIT WPU NCC Unit", order: 2 },
@@ -149,7 +165,7 @@ async function main() {
       create: officer,
     });
   }
-  console.log("✅ Officers created");
+  console.log("✅ Officers created (PLACEHOLDERS - update with real data)");
 
   // Create site stats
   await prisma.siteStats.upsert({
@@ -176,9 +192,8 @@ async function main() {
   console.log("✅ Sample announcement created");
 
   console.log("\n🎉 Database seeded successfully!");
-  console.log("\n📝 Default credentials:");
-  console.log("   Admin: admin@ncc-mitwpu.edu.in / admin123");
-  console.log("   Cadet: cadet@mitwpu.edu.in / cadet123");
+  console.log("\n📝 Admin email:", adminEmail);
+  console.log("   (Password from SEED_ADMIN_PASSWORD env var - not printed for security)");
 }
 
 main()

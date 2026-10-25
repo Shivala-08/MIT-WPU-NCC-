@@ -78,14 +78,7 @@ Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
 ---
 
-## 🔑 Default Credentials
 
-| Role | Email | Password | Access Level |
-| :--- | :--- | :--- | :--- |
-| **Admin (ANO / Officer)** | `admin@ncc-mitwpu.edu.in` | `admin123` | Full Admin Suite (`/admin`) |
-| **Cadet** | `cadet@mitwpu.edu.in` | `cadet123` | Cadet Dashboard (`/dashboard`) |
-
-> *Quick Demo button is also available directly on the login screen (`/login`).*
 
 ---
 

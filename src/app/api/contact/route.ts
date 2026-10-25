@@ -27,10 +27,11 @@ export async function POST(req: Request) {
       { success: true, messageId: message.id },
       { status: 201 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
+      const issues = (error as { issues?: z.ZodIssue[]; errors?: z.ZodIssue[] }).issues || (error as { issues?: z.ZodIssue[]; errors?: z.ZodIssue[] }).errors;
       return NextResponse.json(
-        { error: error.errors[0]?.message || "Validation failed" },
+        { error: issues?.[0]?.message || "Validation failed" },
         { status: 400 }
       );
     }

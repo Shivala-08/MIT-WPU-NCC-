@@ -6,7 +6,7 @@ import { z } from "zod";
 const cadetRegistrationSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string().min(10, "Password must be at least 10 characters"),
   regiNumber: z.string().optional(),
   wing: z.enum(["Army", "Navy", "Air"]),
   division: z.string().optional().default("SD/SW"),
@@ -84,10 +84,11 @@ export async function POST(req: Request) {
       },
       { status: 201 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
+      const issues = (error as { issues?: z.ZodIssue[]; errors?: z.ZodIssue[] }).issues || (error as { issues?: z.ZodIssue[]; errors?: z.ZodIssue[] }).errors;
       return NextResponse.json(
-        { error: error.errors[0]?.message || "Validation failed" },
+        { error: issues?.[0]?.message || "Validation failed" },
         { status: 400 }
       );
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, ChevronLeft, ChevronRight, ZoomIn } from "lucide-react";
@@ -21,14 +21,20 @@ export default function LightboxGallery({
   columns = 3,
 }: LightboxGalleryProps) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [scale, setScale] = useState(1);
+  const [translate, setTranslate] = useState({ x: 0, y: 0 });
 
   const openLightbox = useCallback((index: number) => {
     setSelectedIndex(index);
+    setScale(1);
+    setTranslate({ x: 0, y: 0 });
     document.body.style.overflow = "hidden";
   }, []);
 
   const closeLightbox = useCallback(() => {
     setSelectedIndex(null);
+    setScale(1);
+    setTranslate({ x: 0, y: 0 });
     document.body.style.overflow = "auto";
   }, []);
 
@@ -36,13 +42,30 @@ export default function LightboxGallery({
     setSelectedIndex((prev) =>
       prev !== null ? (prev + 1) % images.length : null
     );
+    setScale(1);
+    setTranslate({ x: 0, y: 0 });
   }, [images.length]);
 
   const goPrev = useCallback(() => {
     setSelectedIndex((prev) =>
       prev !== null ? (prev - 1 + images.length) % images.length : null
     );
+    setScale(1);
+    setTranslate({ x: 0, y: 0 });
   }, [images.length]);
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      setScale((prev) => Math.min(Math.max(prev * (1 - e.deltaY * 0.001), 1), 5));
+    }
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      // Pinch zoom handled by touch-action CSS
+    }
+  }, []);
 
   const gridCols = {
     2: "grid-cols-1 sm:grid-cols-2",
@@ -59,7 +82,7 @@ export default function LightboxGallery({
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: index * 0.05 }}
-            className="group relative aspect-4-3 sm:aspect-3-2 rounded-xl overflow-hidden cursor-pointer bg-gray-100 touch-target"
+            className="group relative aspect-4-3 sm:aspect-3-2 rounded-xl overflow-hidden cursor-pointer bg-gray-100 touch-target touch-action-none"
             onClick={() => openLightbox(index)}
             tabIndex={0}
             role="button"
@@ -95,8 +118,10 @@ export default function LightboxGallery({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center"
+            className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center min-h-[100dvh]"
             onClick={closeLightbox}
+            onWheel={handleWheel}
+            onTouchStart={handleTouchStart}
           >
             {/* Close button */}
             <button
@@ -137,15 +162,20 @@ export default function LightboxGallery({
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ duration: 0.2 }}
-              className="relative max-w-[95vw] max-h-[80vh] sm:max-h-[85vh] w-full h-full"
+              className="relative max-w-[95vw] max-h-[80dvh] sm:max-h-[85dvh] w-full h-full"
               onClick={(e) => e.stopPropagation()}
+              style={{
+                transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`,
+                transformOrigin: "center center",
+                touchAction: "pinch-zoom",
+              }}
             >
               <Image
                 src={images[selectedIndex].src}
                 alt={images[selectedIndex].alt}
                 fill
                 className="object-contain"
-                priority
+                loading="lazy"
               />
             </motion.div>
 

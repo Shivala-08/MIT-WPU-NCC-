@@ -24,7 +24,6 @@ import { AnimatedSection } from "@/components/AnimatedSection";
 const registerFormSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters"),
   email: z.string().email("Valid email address is required"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
   regiNumber: z.string().optional(),
   wing: z.enum(["Army", "Navy", "Air"]),
   division: z.string(),
@@ -203,22 +202,7 @@ export default function RegisterClient() {
                       )}
                     </div>
 
-                    <div>
-                      <label htmlFor="password" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 sm:mb-2">
-                        Account Password (for Portal) *
-                      </label>
-                      <input
-                        id="password"
-                        type="password"
-                        autoComplete="new-password"
-                        {...register("password")}
-                        placeholder="Minimum 6 characters"
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red"
-                      />
-                      {errors.password && (
-                        <p className="text-red-500 text-xs mt-0.5 sm:mt-1">{errors.password.message}</p>
-                      )}
-                    </div>
+                    
 
                     <div>
                       <label htmlFor="phone" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 sm:mb-2">

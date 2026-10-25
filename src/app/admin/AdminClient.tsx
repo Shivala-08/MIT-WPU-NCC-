@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 
@@ -15,11 +16,8 @@ import {
   Plus,
   Trash2,
   CheckCircle,
-  XCircle,
   Clock,
   Search,
-  Filter,
-  AlertTriangle,
   LogOut,
   FileSpreadsheet,
   Check,
@@ -27,12 +25,75 @@ import {
   ExternalLink,
 } from "lucide-react";
 
+interface Cadet {
+  id: string;
+  name: string;
+  email: string;
+  cadetProfile: {
+    fullName?: string;
+    regiNumber?: string;
+    wing?: string;
+    division?: string;
+    year?: string;
+    branch?: string;
+    prn?: string;
+    phone?: string;
+    bloodGroup?: string;
+    gender?: string;
+    status?: string;
+    parentContact?: string;
+  } | null;
+  attendances: any[];
+}
+
+interface Session {
+  id: string;
+  title: string;
+  type: string;
+  date: string | Date;
+  startTime?: string;
+  endTime?: string;
+  attendances: any[];
+}
+
+interface Material {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  fileUrl: string;
+  fileType: string;
+  fileSize: number | null;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+}
+
+interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  isActive: boolean;
+  priority: number;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+}
+
+interface Message {
+  id: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string | Date;
+}
+
 interface AdminClientProps {
-  initialCadets: any[];
-  initialSessions: any[];
-  initialMaterials: any[];
-  initialAnnouncements: any[];
-  initialMessages: any[];
+  initialCadets: Cadet[];
+  initialSessions: Session[];
+  initialMaterials: Material[];
+  initialAnnouncements: Announcement[];
+  initialMessages: Message[];
   stats: {
     totalCadets: number;
     pendingCount: number;
@@ -49,6 +110,7 @@ export default function AdminClient({
   initialMessages,
   stats,
 }: AdminClientProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<
     "overview" | "cadets" | "attendance" | "materials" | "announcements" | "messages"
   >("overview");
@@ -146,23 +208,7 @@ export default function AdminClient({
   };
 
   const exportCadetsToExcel = () => {
-    const dataToExport = filteredCadets.map((c) => ({
-      "Full Name": c.cadetProfile?.fullName || c.name,
-      Email: c.email,
-      "Regimental No": c.cadetProfile?.regiNumber || "Pending",
-      Wing: c.cadetProfile?.wing || "N/A",
-      Division: c.cadetProfile?.division || "N/A",
-      Year: c.cadetProfile?.year || "N/A",
-      Branch: c.cadetProfile?.branch || "N/A",
-      PRN: c.cadetProfile?.prn || "N/A",
-      Phone: c.cadetProfile?.phone || "N/A",
-      "Blood Group": c.cadetProfile?.bloodGroup || "N/A",
-      Gender: c.cadetProfile?.gender || "N/A",
-      Status: c.cadetProfile?.status || "PENDING",
-      "Parent Contact": c.cadetProfile?.parentContact || "N/A",
-    }));
-
-    window.location.href = "/api/admin/cadets/export";
+    router.push("/api/admin/cadets/export");
     showToast("Excel spreadsheet downloaded successfully");
   };
 

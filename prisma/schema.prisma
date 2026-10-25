@@ -12,12 +12,18 @@ model User {
   name         String
   email        String        @unique
   password     String
-  role         String        @default("CADET")
+  role         UserRole      @default(CADET)
   image        String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   attendances  Attendance[]
   cadetProfile CadetProfile?
+}
+
+enum UserRole {
+  ADMIN
+  OFFICER
+  CADET
 }
 
 model CadetProfile {
@@ -152,4 +158,41 @@ model SiteStats {
   totalCadets Int    @default(0)
   totalEvents Int    @default(0)
   totalCamps  Int    @default(0)
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  oldData   Json?
+  newData   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
 }

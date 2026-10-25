@@ -1,83 +1,74 @@
 import NextAuth from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
-import prisma from "@/lib/prisma";
+import GoogleProvider from "next-auth/providers/google";
+
+export type Role = "ADMIN" | "OFFICER" | "CADET";
+
+// Google OAuth sign-in function for client use
+export async function signInWithGoogle() {
+  const { supabase } = await import("@/lib/supabase");
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/auth/callback`,
+    },
+  });
+  if (error) throw error;
+  return data;
+}
+
+// Helper to check if user's email is from the allowed college domain
+export async function isApprovedEmail(email: string): Promise<boolean> {
+  if (!email) return false;
+  const allowedDomain = process.env.ALLOWED_EMAIL_DOMAIN || "mitwpu.edu.in";
+  return email.toLowerCase().endsWith(`@${allowedDomain}`);
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  session: { strategy: "jwt", maxAge: 60 * 60 },
-  pages: {
-    signIn: "/login",
-    signOut: "/login",
-  },
   providers: [
-    CredentialsProvider({
-      name: "credentials",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null;
-        }
-
-        const email = credentials.email.toString().trim().toLowerCase();
-        const password = credentials.password.toString();
-
-        // Rate limiting hint: check for suspicious patterns
-        if (password.length < 6) {
-          return null;
-        }
-
-        const user = await prisma.user.findUnique({
-          where: { email },
-        });
-
-        if (!user) return null;
-
-        // Use constant-time comparison via bcrypt
-        const isPasswordValid = await bcrypt.compare(
-          password,
-          user.password
-        );
-
-        if (!isPasswordValid) return null;
-
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-        };
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      authorization: {
+        params: {
+          prompt: "select_account",
+        },
       },
     }),
   ],
   callbacks: {
+    async signIn({ user, account, profile }) {
+      // Check if user's email is from the allowed college domain
+      if (user.email) {
+        const isApproved = await isApprovedEmail(user.email);
+        if (!isApproved) {
+          // Block sign-in for non-college emails
+          return "/pending";
+        }
+      }
+      return true;
+    },
     async jwt({ token, user }) {
       if (user) {
-        token.role = (user as { role: string }).role;
+        token.role = (user as { role: Role }).role;
         token.id = user.id;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user && token.role && token.id) {
-        (session.user as { role: string }).role = token.role as string;
+        (session.user as { role: Role }).role = token.role as Role;
         (session.user as { id: string }).id = token.id as string;
       }
       return session;
     },
   },
-  cookies: {
-    sessionToken: {
-      name: process.env.NODE_ENV === "production" ? `__Secure-next-auth.session-token` : `next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-      },
-    },
+  session: {
+    strategy: "jwt",
+    maxAge: 60 * 60,
+  },
+  pages: {
+    signIn: "/login",
+    signOut: "/login",
   },
   // Disable CSRF check for signout to allow proper session clearing
   trustHost: true,

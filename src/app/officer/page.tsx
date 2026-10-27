@@ -1,25 +1,25 @@
-import { auth } from "@/lib/auth";
+import { getSessionUser } from "@/lib/guard";
 import prisma from "@/lib/prisma";
 import OfficerDashboardClient from "./OfficerDashboardClient";
 import { redirect } from "next/navigation";
 
 export default async function OfficerPage() {
-  const session = await auth();
+  const user = await getSessionUser();
 
-  if (!session?.user?.id) {
+  if (!user) {
     redirect("/login");
   }
 
-  if (!session?.user?.role || !["ADMIN", "OFFICER"].includes(session.user.role)) {
+  if (user.role !== "ADMIN" && user.role !== "OFFICER") {
     redirect("/dashboard");
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
     include: { cadetProfile: true },
   });
 
-  if (!user) {
+  if (!dbUser) {
     redirect("/login");
   }
 
@@ -38,7 +38,7 @@ export default async function OfficerPage() {
 
   return (
     <OfficerDashboardClient
-      user={user as any}
+      user={dbUser as any}
       sessions={sessions as any}
       approvedCadets={approvedCadets as any}
     />

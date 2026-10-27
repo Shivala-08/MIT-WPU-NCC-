@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
+import { authorize } from "@/lib/guard";
 import prisma from "@/lib/prisma";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const authz = await authorize(["ADMIN", "OFFICER", "CADET"]);
+  if (!authz.ok) {
+    return authz.response;
+  }
+
   try {
     const { id } = await params;
 

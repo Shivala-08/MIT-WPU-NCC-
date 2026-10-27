@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getSessionUser } from "@/lib/guard";
 import prisma from "@/lib/prisma";
 import AdminClient from "./AdminClient";
 
@@ -16,13 +16,13 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminPage() {
-  const session = await auth();
+  const user = await getSessionUser();
 
-  if (!session?.user?.id) {
+  if (!user) {
     redirect("/login");
   }
 
-  if (session.user.role !== "ADMIN") {
+  if (user.role !== "ADMIN") {
     redirect("/");
   }
 

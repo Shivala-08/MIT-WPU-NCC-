@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getSessionUser } from "@/lib/guard";
 import prisma from "@/lib/prisma";
 import Link from "next/link";
 import { Shield, Clock, CheckCircle2, XCircle, AlertCircle, User, Mail, Loader2 } from "lucide-react";
@@ -85,28 +85,28 @@ function StatusStep({ step, current, config }: { step: number; current: number; 
 }
 
 export default async function ApplicationStatusPage() {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    redirect("/login");
-  }
-
-  if (session.user.role === "ADMIN") {
-    redirect("/admin");
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    include: {
-      cadetProfile: true,
-    },
-  });
+  const user = await getSessionUser();
 
   if (!user) {
     redirect("/login");
   }
 
-  const profile = user.cadetProfile;
+  if (user.role === "ADMIN") {
+    redirect("/admin");
+  }
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    include: {
+      cadetProfile: true,
+    },
+  });
+
+  if (!dbUser) {
+    redirect("/login");
+  }
+
+  const profile = dbUser.cadetProfile;
   const rawStatus = (profile?.status || "SUBMITTED").toUpperCase() as StatusKey;
   const status = statusConfig[rawStatus] || statusConfig.SUBMITTED;
   const statusOrder = ["SUBMITTED", "UNDER REVIEW", "APPROVED", "REJECTED", "INVITED", "PENDING"];

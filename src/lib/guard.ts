@@ -1,33 +1,69 @@
-import { supabase } from "@/lib/supabase";
+import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import prisma from "@/lib/prisma";
+import type { Role } from "@/lib/roles";
 
-export type Role = "ADMIN" | "OFFICER" | "CADET";
+export type SessionUser = {
+  id: string;
+  email: string;
+  name: string;
+  role: Role;
+  image: string | null;
+};
 
-export async function getUser() {
-  const { data, error } = await supabase.auth.getUser();
-  if (error) throw error;
-  return data.user;
+export async function getSessionUser(): Promise<SessionUser | null> {
+  const session = await auth();
+  const id = session?.user?.id;
+
+  if (!id) {
+    return null;
+  }
+
+  try {
+    const dbUser = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, email: true, name: true, role: true, image: true },
+    });
+
+    if (!dbUser) {
+      return null;
+    }
+
+    return {
+      id: dbUser.id,
+      email: dbUser.email,
+      name: dbUser.name,
+      role: dbUser.role,
+      image: dbUser.image,
+    };
+  } catch (error) {
+    console.error("Session user lookup failed:", error);
+    return null;
+  }
 }
 
-export async function requireRole(allowed: Role[]) {
-  const user = await getUser();
+export type AuthorizeResult =
+  | { ok: true; user: SessionUser }
+  | { ok: false; response: NextResponse };
+
+export async function authorize(
+  allowedRoles: Role[]
+): Promise<AuthorizeResult> {
+  const user = await getSessionUser();
+
   if (!user) {
-    throw new Response("Unauthorized", { status: 401 });
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
   }
-  const role = user.role as Role | undefined;
-  if (!role || !allowed.includes(role)) {
-    throw new Response("Forbidden", { status: 403 });
+
+  if (!allowedRoles.includes(user.role)) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+    };
   }
-  return user;
-}
 
-export async function requireAdmin() {
-  return requireRole(["ADMIN"]);
-}
-
-export async function requireOfficerOrAdmin() {
-  return requireRole(["ADMIN", "OFFICER"]);
-}
-
-export async function requireCadetOrAbove() {
-  return requireRole(["ADMIN", "OFFICER", "CADET"]);
+  return { ok: true, user };
 }

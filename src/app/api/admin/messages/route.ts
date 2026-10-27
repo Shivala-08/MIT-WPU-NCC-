@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/guard";
+import { authorize } from "@/lib/guard";
 import prisma from "@/lib/prisma";
 
 export async function GET(req: Request) {
-  await requireAdmin();
+  const authz = await authorize(["ADMIN"]);
+  if (!authz.ok) {
+    return authz.response;
+  }
 
   try {
     const { searchParams } = new URL(req.url);
@@ -27,7 +30,10 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  await requireAdmin();
+  const authz = await authorize(["ADMIN"]);
+  if (!authz.ok) {
+    return authz.response;
+  }
 
   try {
     const body = await req.json();

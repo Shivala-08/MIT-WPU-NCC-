@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getSessionUser } from "@/lib/guard";
 import prisma from "@/lib/prisma";
 import CadetDashboardClient from "./CadetDashboardClient";
 
@@ -16,19 +16,19 @@ export const metadata: Metadata = {
 };
 
 export default async function DashboardPage() {
-  const session = await auth();
+  const user = await getSessionUser();
 
-  if (!session?.user?.id) {
+  if (!user) {
     redirect("/login");
   }
 
   // If admin logs in, give them direct access to admin panel
-  if (session.user.role === "ADMIN") {
+  if (user.role === "ADMIN") {
     redirect("/admin");
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
     include: {
       cadetProfile: true,
       attendances: {
@@ -44,7 +44,7 @@ export default async function DashboardPage() {
     },
   });
 
-  if (!user) {
+  if (!dbUser) {
     redirect("/login");
   }
 
@@ -56,7 +56,7 @@ export default async function DashboardPage() {
 
   return (
     <CadetDashboardClient
-      user={user as any}
+      user={dbUser as any}
       announcements={announcements as any}
     />
   );

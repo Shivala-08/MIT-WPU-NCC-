@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { authorize } from "@/lib/guard";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 
@@ -12,9 +12,9 @@ const studyMaterialSchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  const authz = await authorize(["ADMIN"]);
+  if (!authz.ok) {
+    return authz.response;
   }
 
   try {
@@ -46,9 +46,9 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  const authz = await authorize(["ADMIN"]);
+  if (!authz.ok) {
+    return authz.response;
   }
 
   try {

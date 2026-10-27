@@ -2,40 +2,23 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Shield, Lock, Mail, AlertCircle, ArrowRight } from "lucide-react";
+import { Shield, AlertCircle, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 
-export default function LoginClient() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+export default function LoginClient({ errorMessage }: { errorMessage?: string }) {
+  const [error, setError] = useState(errorMessage ?? "");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSignIn = async () => {
     setIsLoading(true);
+    setError("");
     try {
-      // Trigger NextAuth Google OAuth sign-in
-      await import("@/lib/auth").then((mod) => mod.signInWithGoogle());
-      // After OAuth callback, check if user's email is approved
-      const { isApprovedEmail } = await import("@/lib/auth");
-      const user = await import("@/lib/guard").then((mod) => mod.getUser());
-      if (user?.email) {
-        const approved = await isApprovedEmail(user.email);
-        if (!approved) {
-          await import("@/lib/auth").then((mod) => mod.signOut());
-          setError("Only college email accounts (@mitwpu.edu.in) are allowed for sign-in.");
-          setIsLoading(false);
-          return;
-        }
-      }
-      router.push("/");
-      router.refresh();
-    } catch (err: any) {
-      setError(err?.message || "Sign-in failed. Please try again.");
+      await signIn("google", { callbackUrl: "/dashboard" });
+      setIsLoading(false);
+    } catch {
+      setError("Sign-in failed. Please try again.");
       setIsLoading(false);
     }
   };
@@ -43,8 +26,8 @@ export default function LoginClient() {
   return (
     <div className="min-h-screen min-h-[100dvh] bg-ncc-dark-blue flex items-center justify-center py-8 sm:py-16 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
       {/* Background military ornament accents */}
-      <div className="absolute top-0 right-0 w-64 sm:w-96 h-64 sm:h-64 bg-ncc-red/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 left-0 w-64 sm:w-96 h-64 sm:h-64 bg-ncc-light-blue/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-0 right-0 w-64 sm:w-96 h-64 sm:w-96 bg-ncc-red/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-0 w-64 sm:w-96 h-64 sm:w-96 bg-ncc-light-blue/10 rounded-full blur-3xl pointer-events-none" />
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -54,7 +37,7 @@ export default function LoginClient() {
       >
         {/* Brand Header */}
         <div className="text-center mb-6 sm:mb-8">
-          <div className="relative w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-full overflow-hidden border-2 border-ncc-gold shadow-md">
+          <div className="w-16 h-16 mx-auto mb-3 sm:mb-4 rounded-full overflow-hidden border-2 border-ncc-gold shadow-md relative">
             <Image
               src="/images/logo/ncc-logo.png"
               alt="NCC Logo"

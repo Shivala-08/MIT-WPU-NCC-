@@ -1,15 +1,19 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getSessionUser } from "@/lib/guard";
 
 export default async function OfficerLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth();
+  const user = await getSessionUser();
 
-  if (!session?.user?.id || !session?.user?.role || !["ADMIN", "OFFICER"].includes(session.user.role)) {
+  if (!user) {
     redirect("/login");
+  }
+
+  if (user.role !== "ADMIN" && user.role !== "OFFICER") {
+    redirect("/dashboard");
   }
 
   return (

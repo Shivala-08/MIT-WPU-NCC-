@@ -1,29 +1,15 @@
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
+import prisma from "@/lib/prisma";
+import { isRole, type Role } from "@/lib/roles";
 
-export type Role = "ADMIN" | "OFFICER" | "CADET";
+const allowedEmailDomain = (
+  process.env.ALLOWED_EMAIL_DOMAIN ?? "mitwpu.edu.in"
+).toLowerCase();
 
-// Google OAuth sign-in function for client use
-// Triggers NextAuth OAuth flow with Google provider
-// Returns true if sign-in initiation was successful
-export async function signInWithGoogle(): Promise<boolean> {
-  try {
-    const { signIn } = await import("next-auth/react");
-    await signIn("google", {
-      callbackUrl: `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/auth/callback`,
-    });
-    return true;
-  } catch (error) {
-    console.error("signInWithGoogle error:", error);
-    return false;
-  }
-}
-
-// Helper to check if user's email is from the allowed college domain
-export async function isApprovedEmail(email: string): Promise<boolean> {
-  if (!email) return false;
-  const allowedDomain = process.env.ALLOWED_EMAIL_DOMAIN || "mitwpu.edu.in";
-  return email.toLowerCase().endsWith(`@${allowedDomain}`);
+export function isAllowedCollegeEmail(email: string): boolean {
+  const normalized = email.trim().toLowerCase();
+  return normalized.endsWith(`@${allowedEmailDomain}`);
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -40,27 +26,57 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
-      // Check if user's email is from the allowed college domain
-      if (user.email) {
-        const isApproved = await isApprovedEmail(user.email);
-        if (!isApproved) {
-          // Block sign-in for non-college emails
-          return "/pending";
-        }
+      if (account?.provider !== "google") {
+        return false;
       }
-      return true;
+
+      const email = user.email?.trim().toLowerCase();
+      if (!email) {
+        return false;
+      }
+
+      if (!isAllowedCollegeEmail(email)) {
+        return false;
+      }
+
+      const emailVerified = (profile as { email_verified?: boolean } | undefined)
+        ?.email_verified;
+      if (emailVerified === false) {
+        return false;
+      }
+
+      try {
+        const dbUser = await prisma.user.findUnique({
+          where: { email },
+          select: { id: true, role: true },
+        });
+
+        if (!dbUser) {
+          return false;
+        }
+
+        (user as { id: string }).id = dbUser.id;
+        (user as { role: Role }).role = dbUser.role;
+
+        return true;
+      } catch (error) {
+        console.error("Sign-in identity lookup failed:", error);
+        return false;
+      }
     },
     async jwt({ token, user }) {
       if (user) {
-        token.role = (user as { role: Role }).role;
-        token.id = user.id;
+        token.id = (user as { id: string }).id;
+        token.role = (user as { role?: Role }).role;
       }
       return token;
     },
     async session({ session, token }) {
-      if (session.user && token.role && token.id) {
-        (session.user as { role: Role }).role = token.role as Role;
-        (session.user as { id: string }).id = token.id as string;
+      if (session.user) {
+        session.user.id = token.id ?? token.sub ?? "";
+        if (isRole(token.role)) {
+          session.user.role = token.role;
+        }
       }
       return session;
     },
@@ -72,7 +88,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   pages: {
     signIn: "/login",
     signOut: "/login",
+    error: "/login",
   },
-  // Disable CSRF check for signout to allow proper session clearing
   trustHost: true,
 });

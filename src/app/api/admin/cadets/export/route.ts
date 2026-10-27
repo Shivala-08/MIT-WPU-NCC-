@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/guard";
+import { authorize } from "@/lib/guard";
 import prisma from "@/lib/prisma";
 import ExcelJS from "exceljs";
 
 export async function GET() {
-  await requireAdmin();
+  const authz = await authorize(["ADMIN"]);
+  if (!authz.ok) {
+    return authz.response;
+  }
 
   try {
     const cadets = await prisma.user.findMany({

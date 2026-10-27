@@ -17,6 +17,29 @@ export const metadata: Metadata = {
   },
 };
 
-export default function LoginPage() {
-  return <LoginClient />;
+const errorMessages: Record<string, string> = {
+  AccessDenied:
+    "Sign-in denied. Only enrolled @mitwpu.edu.in accounts with an approved NCC record can sign in. New candidates should register first.",
+  Verification:
+    "Sign-in could not be verified. Please try again or contact the administrator.",
+  OAuthAccountNotLinked:
+    "This Google account is not linked to an NCC record. Please register first.",
+  Configuration:
+    "Sign-in is not configured correctly. Please contact the administrator.",
+  Default:
+    "Sign-in failed. Please try again.",
+};
+
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const params = await searchParams;
+  const errorCode = params.error;
+  const errorMessage = errorCode
+    ? errorMessages[errorCode] ?? errorMessages.Default
+    : undefined;
+
+  return <LoginClient errorMessage={errorMessage} />;
 }

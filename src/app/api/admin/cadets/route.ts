@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { authorize } from "@/lib/guard";
 import prisma from "@/lib/prisma";
 
 export async function GET(req: Request) {
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  const authz = await authorize(["ADMIN"]);
+  if (!authz.ok) {
+    return authz.response;
   }
 
   const { searchParams } = new URL(req.url);
@@ -51,9 +51,9 @@ export async function GET(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  const authz = await authorize(["ADMIN"]);
+  if (!authz.ok) {
+    return authz.response;
   }
 
   try {
@@ -83,9 +83,9 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const session = await auth();
-  if (session?.user?.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  const authz = await authorize(["ADMIN"]);
+  if (!authz.ok) {
+    return authz.response;
   }
 
   try {

@@ -47,9 +47,9 @@ export default async function OfficerPage() {
 
   return (
     <OfficerDashboardClient
-      user={dbUser as any}
-      sessions={sessions as any}
-      approvedCadets={approvedCadets as any}
+      user={dbUser}
+      sessions={sessions}
+      approvedCadets={approvedCadets}
     />
   );
 }

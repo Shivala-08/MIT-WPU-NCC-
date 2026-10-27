@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -27,13 +27,11 @@ const navLinks = [
 ];
 
 export default function Navbar() {
-  const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
+  const [openMenuPath, setOpenMenuPath] = useState<string | null>(null);
   const { data: session } = useSession();
 
-  useEffect(() => {
-    setIsOpen(false);
-  }, [pathname]);
+  const isOpen = openMenuPath === pathname;
 
   return (
     <motion.header
@@ -147,7 +145,7 @@ export default function Navbar() {
 
           {/* Mobile menu button */}
           <button
-            onClick={() => setIsOpen(!isOpen)}
+            onClick={() => setOpenMenuPath(isOpen ? null : pathname)}
             className="lg:hidden p-2.5 text-white rounded-lg hover:bg-white/10 transition-colors touch-target"
             aria-label="Toggle menu"
             aria-expanded={isOpen}

@@ -77,8 +77,12 @@ export default function RegisterClient() {
       }
 
       setIsSuccess(true);
-    } catch (err: any) {
-      setServerError(err.message || "An unexpected error occurred. Please try again.");
+    } catch (err: unknown) {
+      setServerError(
+        err instanceof Error
+          ? err.message
+          : "An unexpected error occurred. Please try again."
+      );
     }
   };
 
@@ -448,7 +452,7 @@ export default function RegisterClient() {
 
                 <div className="pt-3 sm:pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
                   <p className="text-xs text-gray-500 text-center sm:text-left">
-                    By submitting, you pledge adherence to the NCC motto <em>"Unity and Discipline"</em>.
+                    By submitting, you pledge adherence to the NCC motto <em>&ldquo;Unity and Discipline&rdquo;</em>.
                   </p>
                   <button
                     type="submit"

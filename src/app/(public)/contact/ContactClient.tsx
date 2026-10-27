@@ -45,9 +45,13 @@ export default function ContactClient() {
 
       setSubmitStatus("success");
       setFormData({ name: "", email: "", subject: "", message: "" });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setSubmitStatus("error");
-      setErrorMessage(err.message || "Something went wrong. Please try again.");
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong. Please try again."
+      );
     } finally {
       setIsSubmitting(false);
     }

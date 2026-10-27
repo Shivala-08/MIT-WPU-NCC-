@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { authorize } from "@/lib/guard";
 import prisma from "@/lib/prisma";
 
@@ -14,28 +15,30 @@ export async function GET(req: Request) {
   const query = searchParams.get("q");
 
   try {
-    const where: any = {};
+    const cadetProfile: Prisma.CadetProfileWhereInput = {};
     if (status && status !== "ALL") {
-      where.cadetProfile = { status };
+      cadetProfile.status = status;
     }
     if (wing && wing !== "ALL") {
-      where.cadetProfile = { ...(where.cadetProfile || {}), wing };
+      cadetProfile.wing = wing;
     }
 
+    const where: Prisma.UserWhereInput = {
+      role: "CADET",
+      ...(query
+        ? {
+            OR: [
+              { name: { contains: query } },
+              { email: { contains: query } },
+              { cadetProfile: { regiNumber: { contains: query } } },
+            ],
+          }
+        : {}),
+      ...(Object.keys(cadetProfile).length > 0 ? { cadetProfile } : {}),
+    };
+
     const cadets = await prisma.user.findMany({
-      where: {
-        role: "CADET",
-        ...(query
-          ? {
-              OR: [
-                { name: { contains: query } },
-                { email: { contains: query } },
-                { cadetProfile: { regiNumber: { contains: query } } },
-              ],
-            }
-          : {}),
-        ...where,
-      },
+      where,
       include: {
         cadetProfile: true,
         attendances: true,

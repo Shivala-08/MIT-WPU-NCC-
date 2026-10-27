@@ -71,11 +71,11 @@ export default async function AdminPage() {
 
   return (
     <AdminClient
-      initialCadets={cadets as any}
-      initialSessions={sessions as any}
-      initialMaterials={materials as any}
-      initialAnnouncements={announcements as any}
-      initialMessages={messages as any}
+      initialCadets={cadets}
+      initialSessions={sessions}
+      initialMaterials={materials}
+      initialAnnouncements={announcements}
+      initialMessages={messages}
       stats={{
         totalCadets,
         pendingCount,

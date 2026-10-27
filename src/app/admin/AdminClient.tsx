@@ -12,38 +12,48 @@ import {
   BookOpen,
   Bell,
   Mail,
-  
+
   Plus,
   Trash2,
   CheckCircle,
+  Check,
   Clock,
   Search,
   LogOut,
   FileSpreadsheet,
-  Check,
   X,
   ExternalLink,
+  type LucideIcon,
 } from "lucide-react";
+
+interface Attendance {
+  id: string;
+  status: string;
+  userId: string;
+  sessionId: string;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+}
 
 interface Cadet {
   id: string;
   name: string;
   email: string;
   cadetProfile: {
-    fullName?: string;
-    regiNumber?: string;
-    wing?: string;
-    division?: string;
-    year?: string;
-    branch?: string;
-    prn?: string;
-    phone?: string;
-    bloodGroup?: string;
-    gender?: string;
-    status?: string;
-    parentContact?: string;
+    fullName: string;
+    regiNumber: string | null;
+    wing: string;
+    division: string | null;
+    year: string;
+    branch: string;
+    prn: string | null;
+    phone: string;
+    bloodGroup: string;
+    gender: string;
+    status: string;
+    parentContact: string | null;
   } | null;
-  attendances: any[];
+  attendances: Attendance[];
 }
 
 interface Session {
@@ -51,9 +61,9 @@ interface Session {
   title: string;
   type: string;
   date: string | Date;
-  startTime?: string;
-  endTime?: string;
-  attendances: any[];
+  startTime: string | null;
+  endTime: string | null;
+  attendances: Attendance[];
 }
 
 interface Material {
@@ -102,6 +112,14 @@ interface AdminClientProps {
   };
 }
 
+type AdminTab =
+  | "overview"
+  | "cadets"
+  | "attendance"
+  | "materials"
+  | "announcements"
+  | "messages";
+
 export default function AdminClient({
   initialCadets,
   initialSessions,
@@ -111,9 +129,7 @@ export default function AdminClient({
   stats,
 }: AdminClientProps) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<
-    "overview" | "cadets" | "attendance" | "materials" | "announcements" | "messages"
-  >("overview");
+  const [activeTab, setActiveTab] = useState<AdminTab>("overview");
 
   // State collections
   const [cadets, setCadets] = useState(initialCadets);
@@ -409,7 +425,7 @@ export default function AdminClient({
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <nav className="flex space-x-2 sm:space-x-8 overflow-x-auto py-2 scrollbar-none">
-            {[
+            {([
               { id: "overview", label: "Overview", icon: Shield },
               {
                 id: "cadets",
@@ -425,13 +441,13 @@ export default function AdminClient({
               { id: "materials", label: "Study Materials", icon: BookOpen },
               { id: "announcements", label: "Noticeboard", icon: Bell },
               { id: "messages", label: `Messages (${messages.length})`, icon: Mail },
-            ].map((tab) => {
+            ] satisfies { id: AdminTab; label: string; icon: LucideIcon; badge?: string | null }[]).map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => setActiveTab(tab.id)}
                   className={`py-3 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
                     isActive
                       ? "bg-ncc-dark-blue text-white shadow-sm"
@@ -1239,7 +1255,7 @@ export default function AdminClient({
 
             {messages.length > 0 ? (
               <div className="space-y-4">
-                {messages.map((m: any) => (
+                {messages.map((m) => (
                   <div
                     key={m.id}
                     className="p-5 rounded-2xl bg-gray-50 border border-gray-200 hover:border-ncc-dark-blue/30 transition-all"

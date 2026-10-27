@@ -16,6 +16,7 @@ import {
   Shield,
   Award,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 import { AnimatedSection } from "@/components/AnimatedSection";
 
@@ -41,7 +42,7 @@ const CATEGORIES = [
   "Certificate C",
 ];
 
-const categoryIcons: Record<string, any> = {
+const categoryIcons: Record<string, LucideIcon> = {
   Drill: Shield,
   "Weapon Training": Crosshair,
   "Map Reading": Compass,

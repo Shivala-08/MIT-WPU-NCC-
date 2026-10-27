@@ -56,8 +56,8 @@ export default async function DashboardPage() {
 
   return (
     <CadetDashboardClient
-      user={dbUser as any}
-      announcements={announcements as any}
+      user={dbUser}
+      announcements={announcements}
     />
   );
 }

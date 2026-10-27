@@ -190,10 +190,7 @@ export default function StudyMaterialsClient({
 
                     {session ? (
                       <a
-                        href={item.fileUrl}
-                        download
-                        target="_blank"
-                        rel="noreferrer"
+                        href={`/api/study-materials/download/${item.id}`}
                         className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-ncc-dark-blue hover:bg-ncc-red text-white text-xs font-semibold transition-all shadow-sm touch-target"
                       >
                         <Download className="w-3.5 h-3.5" /> Download

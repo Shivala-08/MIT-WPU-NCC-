@@ -4,16 +4,19 @@ import GoogleProvider from "next-auth/providers/google";
 export type Role = "ADMIN" | "OFFICER" | "CADET";
 
 // Google OAuth sign-in function for client use
-export async function signInWithGoogle() {
-  const { supabase } = await import("@/lib/supabase");
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: {
-      redirectTo: `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/auth/callback`,
-    },
-  });
-  if (error) throw error;
-  return data;
+// Triggers NextAuth OAuth flow with Google provider
+// Returns true if sign-in initiation was successful
+export async function signInWithGoogle(): Promise<boolean> {
+  try {
+    const { signIn } = await import("next-auth/react");
+    await signIn("google", {
+      callbackUrl: `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/auth/callback`,
+    });
+    return true;
+  } catch (error) {
+    console.error("signInWithGoogle error:", error);
+    return false;
+  }
 }
 
 // Helper to check if user's email is from the allowed college domain

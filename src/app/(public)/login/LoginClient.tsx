@@ -18,19 +18,10 @@ export default function LoginClient() {
   const handleSignIn = async () => {
     setIsLoading(true);
     try {
-      const { signInWithGoogle } = await import("@/lib/auth");
-      const result = await signInWithGoogle();
-      // result contains { url: string } for OAuth redirect, or user info
-      if (result?.url) {
-        // Redirect to Google OAuth
-        router.push(result.url);
-        router.refresh();
-        return;
-      }
-      
-      // Check if email is approved domain
+      // Trigger NextAuth Google OAuth sign-in
+      await import("@/lib/auth").then((mod) => mod.signInWithGoogle());
+      // After OAuth callback, check if user's email is approved
       const { isApprovedEmail } = await import("@/lib/auth");
-      // The user is already in session after OAuth redirect
       const user = await import("@/lib/guard").then((mod) => mod.getUser());
       if (user?.email) {
         const approved = await isApprovedEmail(user.email);
@@ -41,7 +32,6 @@ export default function LoginClient() {
           return;
         }
       }
-      
       router.push("/");
       router.refresh();
     } catch (err: any) {

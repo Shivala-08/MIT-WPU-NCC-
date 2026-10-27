@@ -309,7 +309,7 @@ export default function OfficerDashboardClient({
                               month: "short",
                               year: "numeric",
                             })}
-                            • {s.type} • {s.attendances.length} cadets
+                            • {s.type} • {s.attendances?.length ?? 0} cadets
                           </p>
                         </div>
                       </div>
@@ -536,7 +536,7 @@ export default function OfficerDashboardClient({
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-xs font-bold text-gray-700 bg-gray-100 px-3 py-1 rounded-full">
-                          {s.attendances.length} Attended
+                          {s.attendances?.length ?? 0} Attended
                         </span>
                         <button
                           onClick={() => {

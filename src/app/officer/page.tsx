@@ -24,6 +24,15 @@ export default async function OfficerPage() {
   }
 
   const sessions = await prisma.attendanceSession.findMany({
+    include: {
+      attendances: {
+        include: {
+          user: {
+            include: { cadetProfile: true },
+          },
+        },
+      },
+    },
     orderBy: { date: "desc" },
   });
 

@@ -55,20 +55,25 @@ A full-stack, enterprise-grade web application and cadet administration platform
 cd ncc-website
 
 # Install dependencies
-npm install
+npm ci
 ```
 
-### 3. Database Initialization & Seeding
+### 3. Database Setup (Local Development)
+
+The datasource is **PostgreSQL** (`prisma/schema.prisma` uses `provider = "postgresql"`). Local development must point at a **separate development database** — never at production.
+
 ```bash
-# Sync Prisma schema to local SQLite database
-npx prisma db push
+# Point DATABASE_URL at a local PostgreSQL database (see .env.example)
+npx prisma migrate dev     # create/apply migrations for the local database
+npx prisma generate         # generate Prisma Client
 
-# Generate Prisma Client
-npx prisma generate
-
-# Seed initial admin, sample cadet, events, and site data
+# Seed initial admin, sample cadet, events, and site data (development only)
 npx -y tsx prisma/seed.ts
 ```
+
+- `prisma migrate dev` is for local development only. It can reset the target database, so it must never be pointed at production.
+- `prisma db push` is **not** part of the normal schema-management workflow and must never be run against production.
+- The legacy SQLite files (`prisma/dev.db`, `backups/*.db`) are historical artifacts. The live database is PostgreSQL.
 
 ### 4. Running Locally
 ```bash
@@ -82,26 +87,50 @@ Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
 ---
 
-## 🗄 Switching from SQLite to PostgreSQL (Production)
+## 🗄 Database Connection (Supabase)
 
-To switch from SQLite to PostgreSQL (e.g. Supabase, Neon, AWS RDS, or Vercel Postgres):
+- Use the **Supabase session pooler** endpoint (`*.pooler.supabase.com`, port `5432`) in `DATABASE_URL`. Do **not** use the direct database hostname (`db.<project-ref>.supabase.co`): Vercel's build and runtime hosts are IPv4-only and cannot reach the direct, IPv6-only database address.
+- Use the session pooler (not the transaction pooler on port `6543`) so Prisma can use prepared statements, which migrations require.
+- The connection string must include `?sslmode=require`.
 
-1. Open `prisma/schema.prisma` and update the datasource:
-   ```prisma
-   datasource db {
-     provider = "postgresql"
-     url      = env("DATABASE_URL")
-   }
-   ```
-2. Update your `.env` file with the PostgreSQL connection string:
-   ```env
-   DATABASE_URL="postgresql://user:password@host:5432/ncc_database?sslmode=require"
-   ```
-3. Run the migration:
+Example shape (placeholders only — never commit a real connection string):
+
+```env
+DATABASE_URL="postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require"
+```
+
+---
+
+## 🗄 Production Schema Management
+
+Production schema changes are applied with **`prisma migrate deploy`** only:
+
+```bash
+# Applies committed files from prisma/migrations/. Never prompts, never resets, never drops data.
+npx prisma migrate deploy
+```
+
+- Run it from a protected CI job that holds the production database secret, or manually from an operator machine whose `DATABASE_URL` has been verified as production.
+- `migrate deploy` applies the committed SQL in `prisma/migrations/` and records it in `_prisma_migrations`. It does not create a database and does not invent schema.
+- Never run `prisma migrate dev`, `prisma migrate reset`, `prisma db push`, or `prisma/seed.ts` against production.
+
+### Backup and recovery precautions
+
+1. **Back up before every production migration.** Create a Supabase restore point in the Dashboard (Database → Backups) and, for extra safety, take an on-demand dump:
    ```bash
-   npx prisma db push
-   npx -y tsx prisma/seed.ts
+   pg_dump --dbname="$DATABASE_URL" --format=custom --file="ncc-backup-$(date +%Y%m%d-%H%M%S).dump"
    ```
+2. **Store dumps outside the repository.** They contain production data and must never be committed (the repository ignores `backups/`, `*.db`, and `.env*`).
+3. **Verify after deploying**:
+   ```bash
+   npx prisma migrate status
+   ```
+   The output should list no pending migrations.
+4. **To restore:** provision a fresh database, load the dump, then point `DATABASE_URL` at it:
+   ```bash
+   pg_restore --dbname="$DATABASE_URL" --clean --if-exists ncc-backup-<timestamp>.dump
+   ```
+5. Take a backup before any destructive or long-running migration, and rehearse the restore path on a scratch database first.
 
 ---
 
@@ -109,11 +138,16 @@ To switch from SQLite to PostgreSQL (e.g. Supabase, Neon, AWS RDS, or Vercel Pos
 
 1. Push your repository to GitHub or GitLab.
 2. In the [Vercel Dashboard](https://vercel.com), click **Add New Project** and import the repository.
-3. Configure Environment Variables in Vercel Project Settings:
-   - `DATABASE_URL`: Your production database connection string (e.g. Supabase or Neon PostgreSQL).
-   - `AUTH_SECRET` / `NEXTAUTH_SECRET`: A secure 32+ character random string (generate with `openssl rand -base64 32`).
+3. Configure Environment Variables in Vercel Project Settings (Production and Preview):
+   - `DATABASE_URL`: Production PostgreSQL connection string, using the Supabase **session pooler** endpoint (see *Database Connection*). Required at build time (Prisma Client construction) and at runtime.
+   - `NEXTAUTH_SECRET` (or `AUTH_SECRET`): A secure 32+ character random string (generate with `openssl rand -base64 32`).
    - `NEXTAUTH_URL`: Your custom domain or Vercel deployment URL (e.g. `https://ncc-mitwpu.vercel.app`).
-4. Click **Deploy**. Vercel will automatically build and deploy the Next.js App Router application.
+   - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`: Google OAuth credentials for the existing sign-in provider.
+   - `NEXT_PUBLIC_APP_URL`: Public base URL of the deployed site.
+   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`: Supabase project credentials for study-material storage.
+   - `ALLOWED_EMAIL_DOMAIN` (optional, defaults to `mitwpu.edu.in`) and `STUDY_MATERIAL_ALLOWED_HOSTS` (optional).
+4. Click **Deploy**. Vercel runs `npm run build`; the `postinstall` script runs `prisma generate`. The build **does not** apply migrations.
+5. **Migrations are a separate, protected step** run with `npx prisma migrate deploy` (see *Production Schema Management*). They are not part of the Vercel build and are not applied automatically until the protected migration job is set up.
 
 ---
 
@@ -123,7 +157,8 @@ To switch from SQLite to PostgreSQL (e.g. Supabase, Neon, AWS RDS, or Vercel Pos
 ncc-website/
 ├── prisma/
 │   ├── schema.prisma        # Database schema (Cadets, Attendance, Events, Materials)
-│   └── seed.ts              # Database seeder script
+│   ├── migrations/          # Committed SQL migration history (apply with prisma migrate deploy)
+│   └── seed.ts              # Database seeder script (development only)
 ├── public/
 │   ├── images/
 │   │   ├── logo/            # Unit & NCC emblems

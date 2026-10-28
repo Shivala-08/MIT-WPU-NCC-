@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/guard";
 import prisma from "@/lib/prisma";
+import { USER_PASSWORD_OMIT } from "@/lib/user-fields.mjs";
 import CadetDashboardClient from "./CadetDashboardClient";
 
 export const metadata: Metadata = {
@@ -29,6 +30,7 @@ export default async function DashboardPage() {
 
   const dbUser = await prisma.user.findUnique({
     where: { id: user.id },
+    omit: USER_PASSWORD_OMIT,
     include: {
       cadetProfile: true,
       attendances: {

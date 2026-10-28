@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorize } from "@/lib/guard";
 import prisma from "@/lib/prisma";
+import { USER_PASSWORD_OMIT } from "@/lib/user-fields.mjs";
 
 export async function GET(req: Request) {
   const authz = await authorize(["ADMIN", "OFFICER"]);
@@ -14,6 +15,7 @@ export async function GET(req: Request) {
         attendances: {
           include: {
             user: {
+              omit: USER_PASSWORD_OMIT,
               include: { cadetProfile: true },
             },
           },

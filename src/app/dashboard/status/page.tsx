@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/guard";
 import prisma from "@/lib/prisma";
+import { USER_PASSWORD_OMIT } from "@/lib/user-fields.mjs";
 import Link from "next/link";
 import { Shield, Clock, CheckCircle2, XCircle, AlertCircle, User, Mail, Loader2 } from "lucide-react";
 
@@ -97,6 +98,7 @@ export default async function ApplicationStatusPage() {
 
   const dbUser = await prisma.user.findUnique({
     where: { id: user.id },
+    omit: USER_PASSWORD_OMIT,
     include: {
       cadetProfile: true,
     },

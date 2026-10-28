@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/guard";
 import prisma from "@/lib/prisma";
+import { USER_PASSWORD_OMIT } from "@/lib/user-fields.mjs";
 import AdminClient from "./AdminClient";
 
 export const metadata: Metadata = {
@@ -31,6 +32,7 @@ export default async function AdminPage() {
     await Promise.all([
       prisma.user.findMany({
         where: { role: "CADET" },
+        omit: USER_PASSWORD_OMIT,
         include: {
           cadetProfile: true,
           attendances: true,
@@ -42,6 +44,7 @@ export default async function AdminPage() {
           attendances: {
             include: {
               user: {
+                omit: USER_PASSWORD_OMIT,
                 include: { cadetProfile: true },
               },
             },

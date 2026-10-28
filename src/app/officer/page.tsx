@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/guard";
 import prisma from "@/lib/prisma";
+import { USER_PASSWORD_OMIT } from "@/lib/user-fields.mjs";
 import OfficerDashboardClient from "./OfficerDashboardClient";
 import { redirect } from "next/navigation";
 
@@ -16,6 +17,7 @@ export default async function OfficerPage() {
 
   const dbUser = await prisma.user.findUnique({
     where: { id: user.id },
+    omit: USER_PASSWORD_OMIT,
     include: { cadetProfile: true },
   });
 
@@ -41,6 +43,7 @@ export default async function OfficerPage() {
       role: "CADET",
       cadetProfile: { status: "APPROVED" },
     },
+    omit: USER_PASSWORD_OMIT,
     include: { cadetProfile: true },
     orderBy: { name: "asc" },
   });

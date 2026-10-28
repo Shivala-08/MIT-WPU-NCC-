@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { authorize } from "@/lib/guard";
 import prisma from "@/lib/prisma";
+import {
+  USER_PASSWORD_OMIT,
+  stripPasswordFromRecords,
+} from "@/lib/user-fields.mjs";
 
 export async function GET(req: Request) {
   const authz = await authorize(["ADMIN"]);
@@ -39,6 +43,7 @@ export async function GET(req: Request) {
 
     const cadets = await prisma.user.findMany({
       where,
+      omit: USER_PASSWORD_OMIT,
       include: {
         cadetProfile: true,
         attendances: true,
@@ -46,7 +51,7 @@ export async function GET(req: Request) {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json(cadets);
+    return NextResponse.json(stripPasswordFromRecords(cadets));
   } catch (error) {
     console.error("Failed to fetch cadets:", error);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

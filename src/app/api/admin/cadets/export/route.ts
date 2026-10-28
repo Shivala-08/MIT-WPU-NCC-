@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorize } from "@/lib/guard";
 import prisma from "@/lib/prisma";
 import ExcelJS from "exceljs";
+import { USER_PASSWORD_OMIT } from "@/lib/user-fields.mjs";
 
 export async function GET() {
   const authz = await authorize(["ADMIN"]);
@@ -12,6 +13,7 @@ export async function GET() {
   try {
     const cadets = await prisma.user.findMany({
       where: { role: "CADET" },
+      omit: USER_PASSWORD_OMIT,
       include: { cadetProfile: true },
       orderBy: { createdAt: "desc" },
     });

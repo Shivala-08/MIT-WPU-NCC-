@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { authorize } from "@/lib/guard";
 import prisma from "@/lib/prisma";
+import { isApprovalStatus } from "@/lib/approval";
+import { setApprovalStatus } from "@/lib/account-service.mjs";
 import {
   USER_PASSWORD_OMIT,
+  stripPassword,
   stripPasswordFromRecords,
 } from "@/lib/user-fields.mjs";
 
@@ -20,26 +23,31 @@ export async function GET(req: Request) {
 
   try {
     const cadetProfile: Prisma.CadetProfileWhereInput = {};
+    const where: Prisma.UserWhereInput = { role: "CADET" };
+
     if (status && status !== "ALL") {
-      cadetProfile.status = status;
+      if (isApprovalStatus(status)) {
+        where.approvalStatus = status;
+      } else {
+        cadetProfile.status = status;
+      }
     }
+
     if (wing && wing !== "ALL") {
       cadetProfile.wing = wing;
     }
 
-    const where: Prisma.UserWhereInput = {
-      role: "CADET",
-      ...(query
-        ? {
-            OR: [
-              { name: { contains: query } },
-              { email: { contains: query } },
-              { cadetProfile: { regiNumber: { contains: query } } },
-            ],
-          }
-        : {}),
-      ...(Object.keys(cadetProfile).length > 0 ? { cadetProfile } : {}),
-    };
+    if (query) {
+      where.OR = [
+        { name: { contains: query } },
+        { email: { contains: query } },
+        { cadetProfile: { regiNumber: { contains: query } } },
+      ];
+    }
+
+    if (Object.keys(cadetProfile).length > 0) {
+      where.cadetProfile = cadetProfile;
+    }
 
     const cadets = await prisma.user.findMany({
       where,
@@ -66,7 +74,7 @@ export async function PATCH(req: Request) {
 
   try {
     const body = await req.json();
-    const { userId, status, regiNumber } = body;
+    const { userId, status, rejectionReason, regiNumber } = body;
 
     if (!userId || !status) {
       return NextResponse.json(
@@ -75,18 +83,47 @@ export async function PATCH(req: Request) {
       );
     }
 
-    const updatedProfile = await prisma.cadetProfile.update({
-      where: { userId },
-      data: {
-        status,
-        ...(regiNumber !== undefined ? { regiNumber } : {}),
-      },
+    if (!isApprovalStatus(status)) {
+      return NextResponse.json(
+        { error: "Status must be PENDING, APPROVED or REJECTED" },
+        { status: 400 }
+      );
+    }
+
+    const updatedUser = await setApprovalStatus(prisma, {
+      targetUserId: userId,
+      status,
+      actorId: authz.user.id,
+      rejectionReason:
+        typeof rejectionReason === "string" ? rejectionReason : null,
+      regiNumber: typeof regiNumber === "string" ? regiNumber : undefined,
     });
 
-    return NextResponse.json({ success: true, profile: updatedProfile });
+    return NextResponse.json({
+      success: true,
+      user: stripPassword(updatedUser),
+    });
   } catch (error) {
-    console.error("Failed to update cadet profile:", error);
-    return NextResponse.json({ error: "Update failed" }, { status: 500 });
+    const statusCode =
+      typeof (error as { statusCode?: number })?.statusCode === "number"
+        ? (error as { statusCode: number }).statusCode
+        : 500;
+
+    if (statusCode === 500) {
+      console.error("Failed to update account approval status:", error);
+    }
+
+    return NextResponse.json(
+      {
+        error:
+          statusCode === 404
+            ? "Account not found"
+            : statusCode === 400
+            ? "Invalid approval request"
+            : "Update failed",
+      },
+      { status: statusCode }
+    );
   }
 }
 

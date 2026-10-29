@@ -19,15 +19,14 @@ export const metadata: Metadata = {
 
 const errorMessages: Record<string, string> = {
   AccessDenied:
-    "Sign-in denied. Only enrolled @mitwpu.edu.in accounts with an approved NCC record can sign in. New candidates should register first.",
+    "Sign-in denied. Only @mitwpu.edu.in accounts with a verified Google email can sign in.",
   Verification:
     "Sign-in could not be verified. Please try again or contact the administrator.",
   OAuthAccountNotLinked:
-    "This Google account is not linked to an NCC record. Please register first.",
+    "This Google account could not be linked to the NCC portal. Please try again.",
   Configuration:
     "Sign-in is not configured correctly. Please contact the administrator.",
-  Default:
-    "Sign-in failed. Please try again.",
+  Default: "Sign-in failed. Please try again.",
 };
 
 export default async function LoginPage({

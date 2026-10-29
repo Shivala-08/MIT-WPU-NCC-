@@ -25,7 +25,6 @@ const defaultMaterials = [
     title: "Foot Drill & Word of Command Manual",
     description: "Comprehensive guide to squad drill without arms, saluting on the march, and standard words of command.",
     category: "Drill",
-    fileUrl: "/study/NCC_Drill_Manual.pdf",
     fileType: "PDF",
     fileSize: 2450000,
   },
@@ -34,7 +33,6 @@ const defaultMaterials = [
     title: "Arms Drill for .22 & 7.62mm Rifles",
     description: "Detailed protocols for shastrasalay, visarjan, salute with weapons, and sentry drill.",
     category: "Drill",
-    fileUrl: "/study/NCC_Arms_Drill.pdf",
     fileType: "PDF",
     fileSize: 1840000,
   },
@@ -43,7 +41,6 @@ const defaultMaterials = [
     title: ".22 Deluxe Rifle Characteristics & Stripping",
     description: "Specifications, trigger mechanism, safe handling, HAT principle, and cleaning procedures.",
     category: "Weapon Training",
-    fileUrl: "/study/NCC_Weapon_Training_22.pdf",
     fileType: "PDF",
     fileSize: 3120000,
   },
@@ -52,7 +49,6 @@ const defaultMaterials = [
     title: "INSAS 5.56mm Rifle & LMG Tactical Notes",
     description: "Aiming guidelines, stoppage clearing, types of firing positions, and grouping targets.",
     category: "Weapon Training",
-    fileUrl: "/study/NCC_INSAS_Training.pdf",
     fileType: "PDF",
     fileSize: 4200000,
   },
@@ -61,7 +57,6 @@ const defaultMaterials = [
     title: "Map Reading & Topographical Symbols Guide",
     description: "Reading grid references, service protractor usage, bearing calculations, and contour interpretation.",
     category: "Map Reading",
-    fileUrl: "/study/NCC_Map_Reading_Basics.pdf",
     fileType: "PDF",
     fileSize: 5120000,
   },
@@ -70,7 +65,6 @@ const defaultMaterials = [
     title: "Prismatic Compass & Night Navigation",
     description: "Setting magnetic north, night march charts, celestial navigation basics, and dead reckoning.",
     category: "Map Reading",
-    fileUrl: "/study/NCC_Compass_Navigation.pdf",
     fileType: "PDF",
     fileSize: 2800000,
   },
@@ -79,7 +73,6 @@ const defaultMaterials = [
     title: "Leadership Traits & Military Values Handout",
     description: "Core leadership qualities, decision making under stress, discipline, and moral courage.",
     category: "Leadership",
-    fileUrl: "/study/NCC_Leadership_Traits.pdf",
     fileType: "PDF",
     fileSize: 1540000,
   },
@@ -88,7 +81,6 @@ const defaultMaterials = [
     title: "Certificate 'B' Examination Model Question Paper",
     description: "Past five years solved question sets covering General and Specialized subjects for Army wing.",
     category: "Certificate B",
-    fileUrl: "/study/NCC_Cert_B_Exam_Paper.pdf",
     fileType: "PDF",
     fileSize: 3890000,
   },
@@ -97,7 +89,6 @@ const defaultMaterials = [
     title: "Certificate 'C' Direct SSB Preparation Handbook",
     description: "Advanced syllabus syllabus, viva questions, weapon tests, and SSB screening strategy.",
     category: "Certificate C",
-    fileUrl: "/study/NCC_Cert_C_SSB_Guide.pdf",
     fileType: "PDF",
     fileSize: 6200000,
   },
@@ -109,12 +100,21 @@ export default async function StudyMaterialsPage() {
     title: string;
     description: string | null;
     category: string;
-    fileUrl: string;
     fileType: string;
     fileSize: number | null;
   }[] = [];
   try {
     dbMaterials = await prisma.studyMaterial.findMany({
+      // fileUrl is deliberately not selected: the public page must not leak a
+      // direct storage link that would bypass the protected download route.
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        category: true,
+        fileType: true,
+        fileSize: true,
+      },
       orderBy: { createdAt: "desc" },
     });
   } catch (error) {

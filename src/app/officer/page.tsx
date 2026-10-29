@@ -11,6 +11,10 @@ export default async function OfficerPage() {
     redirect("/login");
   }
 
+  if (user.approvalStatus !== "APPROVED") {
+    redirect("/pending");
+  }
+
   if (user.role !== "ADMIN" && user.role !== "OFFICER") {
     redirect("/dashboard");
   }
@@ -41,7 +45,7 @@ export default async function OfficerPage() {
   const approvedCadets = await prisma.user.findMany({
     where: {
       role: "CADET",
-      cadetProfile: { status: "APPROVED" },
+      approvalStatus: "APPROVED",
     },
     omit: USER_PASSWORD_OMIT,
     include: { cadetProfile: true },

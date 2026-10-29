@@ -25,7 +25,6 @@ interface Material {
   title: string;
   description: string | null;
   category: string;
-  fileUrl: string;
   fileType: string;
   fileSize: number | null;
 }

@@ -160,6 +160,7 @@ async function withAdminSession(run) {
   try {
     admin = await prisma.user.findFirst({
       where: { role: "ADMIN" },
+      orderBy: { createdAt: "asc" },
       select: { id: true, email: true, name: true },
     });
   } finally {

@@ -8,22 +8,55 @@ datasource db {
 }
 
 model User {
-  id           String        @id @default(cuid())
-  name         String
-  email        String        @unique
-  password     String
-  role         UserRole      @default(CADET)
-  image        String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  attendances  Attendance[]
-  cadetProfile CadetProfile?
+  id              String         @id @default(cuid())
+  name            String
+  email           String         @unique
+  password        String?
+  role            UserRole       @default(CADET)
+  image           String?
+  approvalStatus  ApprovalStatus @default(PENDING)
+  approvedAt      DateTime?
+  approvedById    String?
+  rejectionReason String?
+  emailVerifiedAt DateTime?
+  rosterId        String?        @unique
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  attendances     Attendance[]
+  cadetProfile    CadetProfile?
+  approvedBy      User?          @relation("UserApprovals", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvalsGiven  User[]         @relation("UserApprovals")
+  roster          Roster?        @relation(fields: [rosterId], references: [id], onDelete: SetNull)
 }
 
 enum UserRole {
   ADMIN
   OFFICER
   CADET
+}
+
+// The authoritative account eligibility state. CadetProfile.status mirrors
+// this value and is kept in sync by a database trigger.
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Roster {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  fullName   String
+  prn        String?
+  regiNumber String?
+  wing       String?
+  division   String?
+  year       String?
+  branch     String?
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  users      User[]
 }
 
 model CadetProfile {
@@ -46,6 +79,8 @@ model CadetProfile {
   weight           String?
   photoUrl         String?
   emergencyContact String?
+  // Mirror of User.approvalStatus. The database trigger keeps it in sync and
+  // it is never used as the source of truth for authorization.
   status           String   @default("PENDING")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

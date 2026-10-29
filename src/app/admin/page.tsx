@@ -23,6 +23,10 @@ export default async function AdminPage() {
     redirect("/login");
   }
 
+  if (user.approvalStatus !== "APPROVED") {
+    redirect("/pending");
+  }
+
   if (user.role !== "ADMIN") {
     redirect("/");
   }
@@ -65,10 +69,10 @@ export default async function AdminPage() {
 
   const totalCadets = cadets.length;
   const pendingCount = cadets.filter(
-    (c) => c.cadetProfile?.status === "PENDING"
+    (c) => c.approvalStatus === "PENDING"
   ).length;
   const approvedCount = cadets.filter(
-    (c) => c.cadetProfile?.status === "APPROVED"
+    (c) => c.approvalStatus === "APPROVED"
   ).length;
   const totalSessions = sessions.length;
 

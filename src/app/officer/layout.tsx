@@ -12,6 +12,10 @@ export default async function OfficerLayout({
     redirect("/login");
   }
 
+  if (user.approvalStatus !== "APPROVED") {
+    redirect("/pending");
+  }
+
   if (user.role !== "ADMIN" && user.role !== "OFFICER") {
     redirect("/dashboard");
   }

@@ -23,6 +23,10 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  if (user.approvalStatus !== "APPROVED") {
+    redirect("/pending");
+  }
+
   // If admin logs in, give them direct access to admin panel
   if (user.role === "ADMIN") {
     redirect("/admin");

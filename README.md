@@ -83,6 +83,61 @@ Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
 ---
 
+## 🔐 Account Eligibility & Approval
+
+### The authoritative state
+
+`User.approvalStatus` (`PENDING` | `APPROVED` | `REJECTED`) is the **single source of truth** for whether an account may use the portal.
+
+- `CadetProfile.status` is a **derived mirror**. A database trigger writes it from `User.approvalStatus` on every change and forces it on every insert or update, so the two columns can never disagree.
+- The session cookie only carries an identity. Roles and approval states are read from the database on every request (`src/lib/guard.ts`), so an approval or a rejection takes effect immediately and a stale token can neither grant nor deny access.
+- `src/proxy.ts` only checks that a caller is signed in. It never decides a role or an approval state.
+
+### Sign-in rules (Google only)
+
+1. The Google account email must belong to an allowed college domain (`ALLOWED_EMAIL_DOMAIN`, default `mitwpu.edu.in`; personal domains such as Gmail are refused).
+2. The Google profile must report `email_verified: true`. An unverified or unknown verification state is refused.
+3. No pre-existing account is needed. A first sign-in creates the account server side with the role `CADET`; the role, the account id and the approval state are never taken from the client.
+4. A **roster-matched** account is approved immediately. Every other new account stays `PENDING` until an administrator approves it.
+5. A `REJECTED` account is never approved by the roster or by signing in again.
+
+### Roster rules
+
+The roster is stored in the `Roster` table and imported by an administrator (`POST /api/admin/roster`, CSV, up to 500 rows, with a dry run that reports every problem by line number).
+
+- **The normalised email address is the only authoritative field.** It decides whether a cadet is eligible for automatic approval.
+- Every other column (`full name`, `prn`, `regiNumber`, `wing`, `division`, `year`, `branch`) is **informational**. It pre-fills the cadet record and is shown to the administrators. It never decides eligibility, because names are not unique and a single typo would silently exclude a cadet.
+- Rows outside the allowed college domain, rows without a name and duplicate email addresses are rejected with the line number of the offending row.
+
+### How existing accounts were reconciled
+
+The migration `20261029000000_account_approval_and_roster` backfilled the new state from the data that already existed:
+
+| Existing row | Result |
+| --- | --- |
+| `role` is `ADMIN` or `OFFICER` | `APPROVED` (staff keep working) |
+| `CadetProfile.status` is `APPROVED` | `APPROVED` |
+| `CadetProfile.status` is `REJECTED` | `REJECTED` |
+| anything else (`SUBMITTED`, `UNDER REVIEW`, `INVITED`, no profile) | `PENDING` |
+
+No row was deleted and no password hash was touched. The mirror column was normalised to the same three values.
+
+### Where the state is enforced
+
+| Surface | Behaviour |
+| --- | --- |
+| `/dashboard`, `/officer`, `/admin` | A pending or rejected account is redirected to `/pending`. |
+| `/pending` | Shows the application status, the next steps, and the way back to sign in or out. |
+| `/api/admin/*` | `401` when anonymous, `403` when the account is not approved or the role is wrong. |
+| `/api/study-materials/download/*` | Only an `APPROVED` cadet, officer or admin can download. |
+| `PATCH /api/admin/cadets` | The authoritative approval write. It records the acting administrator, the reason for a rejection and an audit log entry. |
+
+### The public registration endpoint
+
+`POST /api/register` is an optional pre-registration that only collects the application details. It accepts college addresses only, rejects unknown fields (so a client cannot send a role, an account id or an approval state), and always creates a `CADET` in the `PENDING` state. A registered account is not usable until it is approved.
+
+---
+
 
 
 ---

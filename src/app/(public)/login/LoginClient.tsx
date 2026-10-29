@@ -88,8 +88,12 @@ export default function LoginClient({ errorMessage }: { errorMessage?: string })
               href="/register"
               className="text-ncc-red hover:underline font-bold"
             >
-              Apply for Cadet Enrolment
+              Submit a cadet application
             </Link>
+          </p>
+          <p className="mt-2 text-[11px] text-gray-400">
+            New college accounts start as pending and unlock the portal once an
+            administrator approves them.
           </p>
         </div>
       </motion.div>

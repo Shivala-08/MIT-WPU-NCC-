@@ -16,10 +16,12 @@
     "db:push": "node scripts/prisma-guard.mjs db push",
     "db:seed": "node scripts/prisma-guard.mjs exec npx tsx prisma/seed.ts",
     "db:diff": "node scripts/prisma-guard.mjs migrate diff",
-    "test": "node --test scripts/prisma-guard.test.mjs scripts/prisma-target.test.mjs scripts/user-exposure.test.mjs",
+    "test": "node --test scripts/prisma-guard.test.mjs scripts/prisma-target.test.mjs scripts/user-exposure.test.mjs scripts/eligibility.test.mjs scripts/account-service.test.mjs scripts/access-control.test.mjs",
     "test:guard": "node --test scripts/prisma-guard.test.mjs",
     "test:target": "node --test scripts/prisma-target.test.mjs",
-    "test:exposure": "node --test scripts/user-exposure.test.mjs"
+    "test:exposure": "node --test scripts/user-exposure.test.mjs",
+    "test:eligibility": "node --test scripts/eligibility.test.mjs scripts/account-service.test.mjs",
+    "test:access": "node --test scripts/access-control.test.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",

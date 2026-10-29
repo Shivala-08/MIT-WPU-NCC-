@@ -92,6 +92,10 @@ export default async function ApplicationStatusPage() {
     redirect("/login");
   }
 
+  if (user.approvalStatus !== "APPROVED") {
+    redirect("/pending");
+  }
+
   if (user.role === "ADMIN") {
     redirect("/admin");
   }

@@ -1,11 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
-import { isRole, type Role } from "@/lib/roles";
 
-const PAGE_RULES: { prefix: string; roles: Role[] }[] = [
-  { prefix: "/admin", roles: ["ADMIN"] },
-  { prefix: "/officer", roles: ["ADMIN", "OFFICER"] },
-  { prefix: "/dashboard", roles: ["ADMIN", "OFFICER", "CADET"] },
+const PROTECTED_PAGE_PREFIXES = ["/admin", "/officer", "/dashboard"];
+
+const PROTECTED_API_PREFIXES = [
+  "/api/admin",
+  "/api/study-materials/download",
 ];
 
 const SESSION_COOKIE_NAMES = [
@@ -35,16 +35,28 @@ async function readSessionToken(req: NextRequest) {
   return null;
 }
 
+function isProtected(pathname: string) {
+  return (
+    PROTECTED_PAGE_PREFIXES.some((prefix) => pathname.startsWith(prefix)) ||
+    PROTECTED_API_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  );
+}
+
+/**
+ * The proxy only decides whether a caller is signed in.
+ *
+ * Roles and approval states are never read from the token: they are read from
+ * the database by the server layouts and the route guards, so an approval or a
+ * rejection takes effect immediately and a stale token cannot grant access.
+ */
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const isApiRequest = pathname.startsWith("/api");
 
-  const rule = PAGE_RULES.find((entry) => pathname.startsWith(entry.prefix));
-
-  if (!rule && !pathname.startsWith("/api/study-materials/download")) {
+  if (!isProtected(pathname)) {
     return NextResponse.next();
   }
 
+  const isApiRequest = pathname.startsWith("/api");
   const token = await readSessionToken(req);
 
   if (!token?.id) {
@@ -52,13 +64,6 @@ export async function proxy(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     return NextResponse.redirect(new URL("/login", req.url));
-  }
-
-  if (rule && (!isRole(token.role) || !rule.roles.includes(token.role))) {
-    if (isApiRequest) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-    return NextResponse.redirect(new URL("/", req.url));
   }
 
   return NextResponse.next();
@@ -69,6 +74,7 @@ export const config = {
     "/admin/:path*",
     "/officer/:path*",
     "/dashboard/:path*",
+    "/api/admin/:path*",
     "/api/study-materials/download/:path*",
   ],
 };

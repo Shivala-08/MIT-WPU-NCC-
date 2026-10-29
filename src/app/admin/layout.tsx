@@ -12,6 +12,10 @@ export default async function AdminLayout({
     redirect("/login");
   }
 
+  if (user.approvalStatus !== "APPROVED") {
+    redirect("/pending");
+  }
+
   if (user.role !== "ADMIN") {
     redirect("/dashboard");
   }

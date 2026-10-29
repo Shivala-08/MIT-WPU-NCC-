@@ -17,12 +17,14 @@ async function main() {
   const hashedPassword = await bcrypt.hash(adminPassword, 12);
   const admin = await prisma.user.upsert({
     where: { email: adminEmail },
-    update: {},
+    update: { approvalStatus: "APPROVED" },
     create: {
       name: "NCC Admin",
       email: adminEmail,
       password: hashedPassword,
       role: "ADMIN",
+      approvalStatus: "APPROVED",
+      approvedAt: new Date(),
     },
   });
   console.log("✅ Admin user created:", admin.email);
@@ -39,12 +41,14 @@ async function main() {
     const cadetPasswordHash = await bcrypt.hash(cadetPassword, 12);
     const cadet = await prisma.user.upsert({
       where: { email: cadetEmail },
-      update: {},
+      update: { approvalStatus: "APPROVED" },
       create: {
         name: "Sample Cadet",
         email: cadetEmail,
         password: cadetPasswordHash,
         role: "CADET",
+        approvalStatus: "APPROVED",
+        approvedAt: new Date(),
         cadetProfile: {
           create: {
             fullName: "Sample Cadet",

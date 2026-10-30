@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
@@ -43,14 +43,14 @@ interface Cadet {
   cadetProfile: {
     fullName: string;
     regiNumber: string | null;
-    wing: string;
+    wing: string | null;
     division: string | null;
-    year: string;
-    branch: string;
+    year: string | null;
+    branch: string | null;
     prn: string | null;
-    phone: string;
-    bloodGroup: string;
-    gender: string;
+    phone: string | null;
+    bloodGroup: string | null;
+    gender: string | null;
     status: string;
     parentContact: string | null;
   } | null;
@@ -174,24 +174,6 @@ export default function AdminClient({
     priority: "1",
   });
 
-  // Roster import
-  const [rosterCsv, setRosterCsv] = useState("");
-  const [rosterEntries, setRosterEntries] = useState<
-    {
-      id: string;
-      email: string;
-      fullName: string;
-      wing: string | null;
-      year: string | null;
-      active: boolean;
-    }[]
-  >([]);
-  const [rosterResult, setRosterResult] = useState("");
-  const [rosterErrors, setRosterErrors] = useState<
-    { line: number; email: string; error: string }[]
-  >([]);
-  const [isImportingRoster, setIsImportingRoster] = useState(false);
-
   // Action feedback
   const [toastMessage, setToastMessage] = useState("");
 
@@ -251,88 +233,6 @@ export default function AdminClient({
   const exportCadetsToExcel = () => {
     router.push("/api/admin/cadets/export");
     showToast("Excel spreadsheet downloaded successfully");
-  };
-
-  const loadRoster = async () => {
-    try {
-      const res = await fetch("/api/admin/roster");
-      if (!res.ok) {
-        return;
-      }
-      const payload = await res.json();
-      setRosterEntries(payload.roster ?? []);
-    } catch {
-      showToast("Failed to load the roster");
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab !== "roster") {
-      return;
-    }
-
-    let cancelled = false;
-
-    const run = async () => {
-      try {
-        const res = await fetch("/api/admin/roster");
-        if (!res.ok || cancelled) {
-          return;
-        }
-        const payload = await res.json();
-        if (!cancelled) {
-          setRosterEntries(payload.roster ?? []);
-        }
-      } catch {
-        /* the roster list stays empty */
-      }
-    };
-
-    void run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeTab]);
-
-  const importRoster = async (dryRun: boolean) => {
-    setIsImportingRoster(true);
-    setRosterErrors([]);
-
-    try {
-      const res = await fetch("/api/admin/roster", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ csv: rosterCsv, dryRun }),
-      });
-
-      const payload = await res.json();
-
-      if (dryRun) {
-        setRosterErrors(payload.invalid ?? []);
-        setRosterResult(
-          payload.invalid?.length
-            ? `${payload.valid} valid row(s), ${payload.invalid.length} row(s) need attention`
-            : `${payload.valid} valid row(s), ready to import`
-        );
-        return;
-      }
-
-      if (!res.ok) {
-        setRosterErrors(payload.invalid ?? []);
-        setRosterResult(payload.error || "The roster could not be imported");
-        return;
-      }
-
-      setRosterErrors([]);
-      setRosterResult(`${payload.imported} roster row(s) imported`);
-      setRosterCsv("");
-      await loadRoster();
-    } catch {
-      setRosterResult("The roster could not be imported");
-    } finally {
-      setIsImportingRoster(false);
-    }
   };
 
   const filteredCadets = cadets.filter((c) => {
@@ -779,12 +679,20 @@ export default function AdminClient({
                   Manage applications, verify medical data, and export registers
                 </p>
               </div>
-              <button
-                onClick={exportCadetsToExcel}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-md"
-              >
-                <FileSpreadsheet className="w-4 h-4" /> Export to Excel (.xlsx)
-              </button>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <Link
+                  href="/admin/cadets"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-ncc-dark-blue hover:bg-ncc-navy text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-md"
+                >
+                  <Users className="w-4 h-4" /> Cadet directory
+                </Link>
+                <button
+                  onClick={exportCadetsToExcel}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-md"
+                >
+                  <FileSpreadsheet className="w-4 h-4" /> Export to Excel (.xlsx)
+                </button>
+              </div>
             </div>
 
             {/* Filters */}
@@ -1401,134 +1309,33 @@ export default function AdminClient({
 
         {/* TAB 7: ROSTER */}
         {activeTab === "roster" && (
-          <div className="space-y-8">
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-sm">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-6 mb-6">
-                <div>
-                  <h2 className="font-heading font-black text-2xl text-gray-900">
-                    Roster Import
-                  </h2>
-                  <p className="text-xs text-gray-500 mt-1">
-                    The email address is the only authoritative field. A cadet
-                    whose email is on the roster is approved automatically at
-                    the next sign in.
-                  </p>
-                </div>
-                <button
-                  onClick={loadRoster}
-                  className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition-all touch-target"
-                >
-                  Reload roster
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label
-                    htmlFor="roster-csv"
-                    className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2"
-                  >
-                    CSV file content
-                  </label>
-                  <textarea
-                    id="roster-csv"
-                    rows={8}
-                    value={rosterCsv}
-                    onChange={(e) => setRosterCsv(e.target.value)}
-                    placeholder={
-                      "email,full name,prn,wing,year\ncadet@mitwpu.edu.in,Example Cadet,1032200123,Army,1st Year"
-                    }
-                    className="w-full px-3 sm:px-4 py-3 rounded-xl border border-gray-200 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red"
-                  />
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <button
-                    onClick={() => importRoster(true)}
-                    disabled={isImportingRoster || !rosterCsv.trim()}
-                    className="px-5 py-2.5 rounded-xl bg-ncc-dark-blue hover:bg-ncc-dark-blue/90 disabled:opacity-50 text-white font-bold text-xs transition-all touch-target"
-                  >
-                    Check file
-                  </button>
-                  <button
-                    onClick={() => importRoster(false)}
-                    disabled={isImportingRoster || !rosterCsv.trim()}
-                    className="px-5 py-2.5 rounded-xl bg-ncc-red hover:bg-ncc-red-light disabled:opacity-50 text-white font-bold text-xs transition-all touch-target"
-                  >
-                    Import roster
-                  </button>
-                </div>
-
-                {rosterResult && (
-                  <p className="text-xs font-semibold text-gray-700">{rosterResult}</p>
-                )}
-
-                {rosterErrors.length > 0 && (
-                  <div className="p-3 rounded-xl bg-red-50 border border-red-200">
-                    <ul className="space-y-1 text-[11px] text-red-700">
-                      {rosterErrors.map((issue, index) => (
-                        <li key={`${issue.line}-${index}`}>
-                          Line {issue.line}
-                          {issue.email ? ` (${issue.email})` : ""}: {issue.error}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-6">
+              <div>
+                <h2 className="font-heading font-black text-2xl text-gray-900">
+                  Roster Import
+                </h2>
+                <p className="text-gray-500 text-xs sm:text-sm mt-1">
+                  The email address is the only authoritative field. A cadet
+                  whose email is on the roster is approved automatically at
+                  the next sign in.
+                </p>
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-sm">
-              <h3 className="font-heading font-black text-xl text-gray-900 mb-4">
-                Roster entries ({rosterEntries.length})
-              </h3>
-              {rosterEntries.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs sm:text-sm">
-                    <thead>
-                      <tr className="border-b text-gray-400 font-bold uppercase text-[10px] tracking-wider">
-                        <th className="py-3 px-3">Name</th>
-                        <th className="py-3 px-3">Email</th>
-                        <th className="py-3 px-3">Wing</th>
-                        <th className="py-3 px-3">Year</th>
-                        <th className="py-3 px-3">State</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {rosterEntries.map((entry) => (
-                        <tr key={entry.id}>
-                          <td className="py-3 px-3 font-bold text-gray-900">
-                            {entry.fullName}
-                          </td>
-                          <td className="py-3 px-3 text-gray-700">{entry.email}</td>
-                          <td className="py-3 px-3 text-gray-700">
-                            {entry.wing || "N/A"}
-                          </td>
-                          <td className="py-3 px-3 text-gray-700">
-                            {entry.year || "N/A"}
-                          </td>
-                          <td className="py-3 px-3">
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                                entry.active
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : "bg-gray-100 text-gray-600"
-                              }`}
-                            >
-                              {entry.active ? "Active" : "Inactive"}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-400 text-xs">
-                  <FileSpreadsheet className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                  No roster rows imported yet.
-                </div>
-              )}
+            <div className="p-6 rounded-2xl bg-gray-50 border border-gray-200 text-center">
+              <FileSpreadsheet className="w-8 h-8 mx-auto mb-3 text-ncc-red" />
+              <p className="text-xs text-gray-600 mb-4 max-w-md mx-auto">
+                The roster manager imports the NCC roster, reports every problem
+                by line number, keeps the cadet profiles in sync, searches the
+                roster and deactivates a row without touching the account.
+              </p>
+              <Link
+                href="/admin/roster"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-ncc-dark-blue hover:bg-ncc-navy text-white font-bold text-xs rounded-xl transition-all shadow-md"
+              >
+                <FileSpreadsheet className="w-4 h-4" /> Open the roster manager
+              </Link>
             </div>
           </div>
         )}

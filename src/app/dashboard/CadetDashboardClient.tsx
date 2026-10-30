@@ -29,12 +29,12 @@ interface CadetDashboardProps {
     cadetProfile?: {
       fullName: string;
       regiNumber: string | null;
-      wing: string;
+      wing: string | null;
       division: string | null;
-      year: string;
-      branch: string;
+      year: string | null;
+      branch: string | null;
       prn: string | null;
-      bloodGroup: string;
+      bloodGroup: string | null;
       status: string;
     } | null;
     attendances: {
@@ -115,6 +115,12 @@ export default function CadetDashboardClient({
             </div>
 
             <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto md:w-auto">
+              <Link
+                href="/profile"
+                className="flex-1 sm:flex-initial px-3 sm:px-4 py-2 sm:py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs sm:text-sm font-medium rounded-xl transition-all flex items-center justify-center gap-2 touch-target"
+              >
+                <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> My Profile
+              </Link>
               <Link
                 href="/study-materials"
                 className="flex-1 sm:flex-initial px-3 sm:px-4 py-2 sm:py-2.5 bg-ncc-red hover:bg-ncc-red-light text-white text-xs sm:text-sm font-bold rounded-xl transition-all shadow-md text-center flex items-center justify-center gap-2 touch-target"

@@ -23,6 +23,7 @@ A full-stack, enterprise-grade web application and cadet administration platform
 
 ### 2. Cadet Portal & Self-Service (`/dashboard`)
 - **Personal Dashboard**: View assigned regimental number, wing, year, branch, and medical data.
+- **Cadet Profile (`/profile`)**: View and complete the profile, edit the personal fields, see the locked roster fields, upload a private profile photo and track the profile completion.
 - **Attendance Percentage Tracker**: Real-time attendance meter with automatic warnings if parade attendance dips below the mandatory 75% threshold.
 - **Training Roll History**: Detailed log of all attended parades, drills, and camps.
 - **Unit Noticeboard**: Real-time broadcasts and urgent parade orders from unit officers.
@@ -142,6 +143,103 @@ No row was deleted and no password hash was touched. The mirror column was norma
 
 ---
 
+## 👤 Cadet Profiles, Roster Synchronisation & Profile Photos
+
+### Field ownership
+
+Every field of `CadetProfile` has exactly one owner. The rules live in
+`src/lib/profile-fields.mjs` and are used by the API routes, the roster
+synchronisation and the tests, so there is a single source of truth.
+
+| Owner | Fields | Who writes it |
+| --- | --- | --- |
+| **Roster-controlled** | `fullName`, `prn`, `regiNumber`, `wing`, `division`, `year`, `branch` | The administrator, through the roster import. A roster value replaces the stored value; a missing roster value never erases a stored value. |
+| **Cadet-controlled** | `phone`, `address`, `parentContact`, `emergencyContact`, `bloodGroup`, `gender`, `height`, `weight` | The cadet, in their own profile. The roster never overwrites these fields. |
+| **Administrator-controlled** | `dob` | An authorised administrator, through the cadet directory. A cadet sends a correction request instead. |
+| **System-controlled** | `photoUrl`, `photoThumbnailUrl`, `status`, `userId`, `id`, timestamps | The application. The photo names are generated on the server, `status` is the trigger driven mirror of `User.approvalStatus`. |
+
+A request that contains a field somebody else owns is **rejected** with a
+per field message; it is never silently ignored.
+
+### Profile routes
+
+| Route | Behaviour |
+| --- | --- |
+| `GET /api/profile` | The profile of the signed in cadet, with the completion meter. |
+| `PATCH /api/profile` | Updates the cadet owned fields only. Unknown, roster, admin or system fields are rejected with `400`. |
+| `PUT /api/profile` | Stores a correction request for a locked field as an audit entry. |
+| `POST /api/profile/photo` | Uploads the photo of the signed in cadet. The owner comes from the session, never from the request. |
+| `DELETE /api/profile/photo` | Removes the photo of the signed in cadet. |
+| `GET /api/profile/photo` | Streams the photo of the signed in cadet after the database backed check. |
+| `GET /api/admin/profiles` | The paginated cadet directory (search, approval filter, roster filter). |
+| `GET /api/admin/cadets/[userId]` | The full record of one cadet: profile, roster match, approval state, correction requests. |
+| `PATCH /api/admin/cadets/[userId]` | Corrects the administrator owned fields and writes an audit entry. The approval state is **not** part of this route. |
+| `GET /api/admin/cadets/[userId]/photo` | Streams the photo of a cadet for an administrator. Read only. |
+| `GET /api/admin/roster` | The paginated roster (search, active filter, matched filter). |
+| `POST /api/admin/roster` | The CSV import with the dry run, the summary and the per line errors. |
+| `PATCH /api/admin/roster` | Activates or deactivates a roster row. |
+
+### Roster synchronisation
+
+1. Every row is validated and the email address is normalised.
+2. The row is matched to an account by the normalised email.
+3. The roster controlled fields of the profile are updated, the cadet
+   controlled fields are left untouched.
+4. A row without an account is reported as unmatched; the cadet is approved
+   automatically at the first sign in.
+5. The import **never** changes the approval state. A rejected account stays
+   rejected, a pending account stays pending until it signs in or until an
+   administrator uses the explicit approval flow (`PATCH /api/admin/cadets`).
+6. A deactivated roster row stays deactivated: a later import does not
+   reactivate it, and deactivating never deletes an account, never changes a
+   role and never changes an approval state.
+
+### Profile photo storage
+
+The photos are **private**. They are never written to `public/` and the
+storage bucket is never made public. The browser only receives the bytes
+through the authorised photo routes, so neither the storage path nor a signed
+URL is exposed.
+
+Upload rules:
+
+* JPEG, PNG and WebP only, at most 5 MB. SVG and every other active format is
+  refused.
+* The declared media type **and** the file content (magic bytes) have to
+  agree. A text file renamed to `.jpg` is rejected.
+* The file is re-encoded with `sharp`: 512 px square WebP plus a 96 px
+  thumbnail. The re-encoding removes every EXIF block (camera serial, GPS
+  position, capture date).
+* The object names are random and generated on the server, scoped to the
+  owner: `profiles/<userId>/<random>.webp`.
+* A failed upload removes the new objects again, so the profile never points
+  at a photo that does not exist.
+
+#### Required storage configuration
+
+Development uses a local folder (`.local-storage/profile-photos`, ignored by
+git) that is **not** served statically:
+
+```env
+PROFILE_PHOTO_STORAGE="local"
+```
+
+Production has to use a private Supabase Storage bucket:
+
+```env
+PROFILE_PHOTO_STORAGE="supabase"
+PROFILE_PHOTO_BUCKET="profile-photos"
+SUPABASE_URL="https://<project-ref>.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="<service-role-key>"
+```
+
+The bucket has to be created **once** in the Supabase dashboard (or with the
+storage API) with **public access disabled**. Nothing in this repository
+creates or changes a bucket, and the service role key is only read on the
+server.
+
+---
+
 ## 🗄 Database Connection (Supabase)
 
 - Use the **Supabase session pooler** endpoint (`*.pooler.supabase.com`, port `5432`) in `DATABASE_URL`. Do **not** use the direct database hostname (`db.<project-ref>.supabase.co`): Vercel's build and runtime hosts are IPv4-only and cannot reach the direct, IPv6-only database address.
@@ -199,7 +297,8 @@ npx prisma migrate deploy
    - `NEXTAUTH_URL`: Your custom domain or Vercel deployment URL (e.g. `https://ncc-mitwpu.vercel.app`).
    - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`: Google OAuth credentials for the existing sign-in provider.
    - `NEXT_PUBLIC_APP_URL`: Public base URL of the deployed site.
-   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`: Supabase project credentials for study-material storage.
+    - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`: Supabase project credentials for study-material storage.
+    - `PROFILE_PHOTO_STORAGE=supabase`, `PROFILE_PHOTO_BUCKET=profile-photos`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`: private bucket for the cadet profile photos (see *Profile photo storage*).
    - `ALLOWED_EMAIL_DOMAIN` (optional, defaults to `mitwpu.edu.in`) and `STUDY_MATERIAL_ALLOWED_HOSTS` (optional).
 4. Click **Deploy**. Vercel runs `npm run build`; the `postinstall` script runs `prisma generate`. The build **does not** apply migrations.
 5. **Migrations are a separate, protected step** run with `npx prisma migrate deploy` (see *Production Schema Management*). They are not part of the Vercel build and are not applied automatically until the protected migration job is set up.

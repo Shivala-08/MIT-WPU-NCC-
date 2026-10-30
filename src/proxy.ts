@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
-const PROTECTED_PAGE_PREFIXES = ["/admin", "/officer", "/dashboard"];
+const PROTECTED_PAGE_PREFIXES = ["/admin", "/officer", "/dashboard", "/profile"];
 
 const PROTECTED_API_PREFIXES = [
   "/api/admin",
   "/api/study-materials/download",
+  "/api/profile",
 ];
 
 const SESSION_COOKIE_NAMES = [
@@ -74,7 +75,9 @@ export const config = {
     "/admin/:path*",
     "/officer/:path*",
     "/dashboard/:path*",
+    "/profile/:path*",
     "/api/admin/:path*",
+    "/api/profile/:path*",
     "/api/study-materials/download/:path*",
   ],
 };

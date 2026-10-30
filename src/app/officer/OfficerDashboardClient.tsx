@@ -29,12 +29,12 @@ interface OfficerDashboardProps {
     cadetProfile?: {
       fullName: string;
       regiNumber: string | null;
-      wing: string;
+      wing: string | null;
       division: string | null;
-      year: string;
-      branch: string;
-      bloodGroup: string;
-      gender?: string;
+      year: string | null;
+      branch: string | null;
+      bloodGroup: string | null;
+      gender?: string | null;
       status: string;
       prn?: string | null;
       phone?: string | null;
@@ -57,7 +57,7 @@ interface OfficerDashboardProps {
         cadetProfile: {
           fullName: string;
           regiNumber: string | null;
-          wing: string;
+          wing: string | null;
         } | null;
       };
     }[];
@@ -69,12 +69,12 @@ interface OfficerDashboardProps {
     cadetProfile: {
       fullName: string;
       regiNumber: string | null;
-      wing: string;
+      wing: string | null;
       division: string | null;
-      year: string;
-      branch: string;
-      bloodGroup: string;
-      gender?: string;
+      year: string | null;
+      branch: string | null;
+      bloodGroup: string | null;
+      gender?: string | null;
       prn?: string | null;
       phone?: string | null;
     } | null;

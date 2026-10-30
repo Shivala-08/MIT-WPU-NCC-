@@ -60,24 +60,27 @@ model Roster {
 }
 
 model CadetProfile {
-  id               String   @id @default(cuid())
-  userId           String   @unique
+  id               String    @id @default(cuid())
+  userId           String    @unique
   fullName         String
   regiNumber       String?
-  wing             String
+  wing             String?
   division         String?
-  year             String
-  branch           String
+  year             String?
+  branch           String?
   prn              String?
-  dob              DateTime
-  bloodGroup       String
-  gender           String
-  phone            String
+  dob              DateTime?
+  bloodGroup       String?
+  gender           String?
+  phone            String?
   address          String?
   parentContact    String?
   height           String?
   weight           String?
+  // Storage object name of the profile photo, never a public URL.
   photoUrl         String?
+  // Storage object name of the profile photo thumbnail.
+  photoThumbnailUrl String?
   emergencyContact String?
   // Mirror of User.approvalStatus. The database trigger keeps it in sync and
   // it is never used as the source of truth for authorization.

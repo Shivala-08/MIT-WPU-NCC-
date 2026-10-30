@@ -3,6 +3,7 @@ import {
   isAllowedCollegeEmail,
   normalizeEmail,
 } from "./eligibility.mjs";
+import { syncProfileFromRoster } from "./profile-service.mjs";
 
 /**
  * @typedef {import("./eligibility.mjs").ApprovalStatus} ApprovalStatus
@@ -109,6 +110,28 @@ async function writeAudit(db, entry) {
 }
 
 /**
+ * Pre-fills the profile of a signed in account from the roster.
+ *
+ * The roster only writes the fields it owns and it never touches the
+ * approval state. A failure is logged and never blocks the sign in.
+ *
+ * @param {any} db
+ * @param {{ user: AccountRecord, rosterEntry: RosterRecord | null }} input
+ * @returns {Promise<void>}
+ */
+async function syncProfileWithRoster(db, { user, rosterEntry }) {
+  if (!rosterEntry || !db.cadetProfile || typeof db.cadetProfile.findUnique !== "function") {
+    return;
+  }
+
+  try {
+    await syncProfileFromRoster(db, { user, rosterRow: rosterEntry });
+  } catch (error) {
+    console.error("Failed to sync the cadet profile with the roster:", error);
+  }
+}
+
+/**
  * Creates or reconciles the account behind a Google sign-in.
  *
  * The database is injected so the rule set can be exercised with a fixture
@@ -212,6 +235,10 @@ export async function resolveGoogleAccount(
       },
     });
 
+    // The roster pre-fills the roster controlled fields of the profile. The
+    // cadet controlled fields stay empty and are completed by the cadet.
+    await syncProfileWithRoster(db, { user: created, rosterEntry });
+
     return { ok: true, user: created, source: decision.source };
   }
 
@@ -225,6 +252,11 @@ export async function resolveGoogleAccount(
     decision.approvalStatus === "APPROVED";
 
   const needsVerificationStamp = !existing.emailVerifiedAt;
+
+  // The roster keeps the roster controlled fields of the profile up to date.
+  // It never changes the approval state and never touches the fields that
+  // the cadet owns.
+  await syncProfileWithRoster(db, { user: existing, rosterEntry });
 
   if (!shouldApprove && !needsVerificationStamp) {
     return { ok: true, user: existing, source: "EXISTING" };

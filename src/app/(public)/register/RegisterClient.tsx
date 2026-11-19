@@ -2,35 +2,32 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import {
   Shield,
   User,
-  Mail,
-  Lock,
-  Phone,
-  Calendar,
   Building,
   Activity,
   CheckCircle2,
   AlertCircle,
-  FileCheck,
+  Info,
 } from "lucide-react";
 import { AnimatedSection } from "@/components/AnimatedSection";
 
+/**
+ * The form of the cadet application.
+ *
+ * The form only collects the fields that the applicant owns. The wing, the
+ * division, the year of study, the branch, the university PRN, the
+ * regimental number and the date of birth are maintained by the roster and by
+ * the administrators of the unit. The server refuses those fields, so the
+ * form does not ask for them and never sends them.
+ */
 const registerFormSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters"),
   email: z.string().email("Valid email address is required"),
-  regiNumber: z.string().optional(),
-  wing: z.enum(["Army", "Navy", "Air"]),
-  division: z.string(),
-  year: z.string().min(1, "Select academic year"),
-  branch: z.string().min(2, "Branch/Department is required"),
-  prn: z.string().optional(),
-  dob: z.string().min(1, "Date of birth is required"),
   bloodGroup: z.string().min(1, "Blood group is required"),
   gender: z.enum(["Male", "Female", "Other"]),
   phone: z.string().min(10, "Phone number must be at least 10 digits"),
@@ -44,7 +41,6 @@ const registerFormSchema = z.object({
 type RegisterFormData = z.infer<typeof registerFormSchema>;
 
 export default function RegisterClient() {
-  const router = useRouter();
   const [serverError, setServerError] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -55,10 +51,7 @@ export default function RegisterClient() {
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerFormSchema),
     defaultValues: {
-      wing: "Army",
-      division: "SD",
       gender: "Male",
-      year: "1st Year",
     },
   });
 
@@ -71,7 +64,7 @@ export default function RegisterClient() {
         body: JSON.stringify(data),
       });
 
-      const resData = await res.json();
+      const resData = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(resData.error || "Enrollment submission failed");
       }
@@ -165,7 +158,8 @@ export default function RegisterClient() {
                   <AlertCircle className="w-5 h-5 shrink-0" />
                   <p className="text-sm font-medium">{serverError}</p>
                 </div>
-              )}                <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 sm:space-y-8">
+              )}
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 sm:space-y-8">
                 {/* Personal Information */}
                 <div>
                   <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-ncc-red mb-3 sm:mb-4 flex items-center gap-2">
@@ -206,8 +200,6 @@ export default function RegisterClient() {
                       )}
                     </div>
 
-                    
-
                     <div>
                       <label htmlFor="phone" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 sm:mb-2">
                         Mobile Phone Number *
@@ -223,21 +215,6 @@ export default function RegisterClient() {
                       />
                       {errors.phone && (
                         <p className="text-red-500 text-xs mt-0.5 sm:mt-1">{errors.phone.message}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label htmlFor="dob" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 sm:mb-2">
-                        Date of Birth *
-                      </label>
-                      <input
-                        id="dob"
-                        type="date"
-                        {...register("dob")}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red"
-                      />
-                      {errors.dob && (
-                        <p className="text-red-500 text-xs mt-0.5 sm:mt-1">{errors.dob.message}</p>
                       )}
                     </div>
 
@@ -263,92 +240,19 @@ export default function RegisterClient() {
                   <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-ncc-dark-blue mb-3 sm:mb-4 flex items-center gap-2">
                     <Building className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> 2. Academic & NCC Enrolment Details
                   </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
-                    <div>
-                      <label htmlFor="wing" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 sm:mb-2">
-                        NCC Wing *
-                      </label>
-                      <select
-                        id="wing"
-                        {...register("wing")}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red bg-white"
-                      >
-                        <option value="Army">Army Wing</option>
-                        <option value="Navy">Naval Wing</option>
-                        <option value="Air">Air Wing</option>
-                      </select>
-                    </div>
 
+                  <div className="flex items-start gap-3 p-4 rounded-2xl bg-blue-50 border border-blue-200 text-blue-900 text-xs sm:text-sm">
+                    <Info className="w-5 h-5 shrink-0 mt-0.5" />
                     <div>
-                      <label htmlFor="division" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 sm:mb-2">
-                        Division *
-                      </label>
-                      <select
-                        id="division"
-                        {...register("division")}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red bg-white"
-                      >
-                        <option value="SD">SD (Senior Division - Boys)</option>
-                        <option value="SW">SW (Senior Wing - Girls)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label htmlFor="year" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 sm:mb-2">
-                        Academic Year *
-                      </label>
-                      <select
-                        id="year"
-                        {...register("year")}
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red bg-white"
-                      >
-                        <option value="1st Year">1st Year (FY)</option>
-                        <option value="2nd Year">2nd Year (SY)</option>
-                        <option value="3rd Year">3rd Year (TY)</option>
-                        <option value="4th Year">4th Year (Final)</option>
-                      </select>
-                    </div>
-
-                    <div className="sm:col-span-2">
-                      <label htmlFor="branch" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 sm:mb-2">
-                        Degree Branch / Department *
-                      </label>
-                      <input
-                        id="branch"
-                        type="text"
-                        {...register("branch")}
-                        placeholder="e.g. B.Tech Computer Science & Engineering"
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red"
-                      />
-                      {errors.branch && (
-                        <p className="text-red-500 text-xs mt-0.5 sm:mt-1">{errors.branch.message}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label htmlFor="prn" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 sm:mb-2">
-                        University PRN (Optional)
-                      </label>
-                      <input
-                        id="prn"
-                        type="text"
-                        {...register("prn")}
-                        placeholder="e.g. 1032200123"
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red"
-                      />
-                    </div>
-
-                    <div>
-                      <label htmlFor="regiNumber" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5 sm:mb-2">
-                        Regimental Enrolment No. (If already allotted)
-                      </label>
-                      <input
-                        id="regiNumber"
-                        type="text"
-                        {...register("regiNumber")}
-                        placeholder="e.g. MAH/SD/24/104"
-                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30 focus:border-ncc-red"
-                      />
+                      <p className="font-bold">These details are filled by the unit</p>
+                      <p className="mt-1">
+                        The NCC wing, the division, the academic year, the degree
+                        branch, the university PRN, the regimental number and the
+                        date of birth come from the official roster of the unit
+                        and from the verification of the Associate NCC Officer.
+                        They are set on your profile after the review, so you do
+                        not have to enter them here.
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -377,6 +281,9 @@ export default function RegisterClient() {
                         <option value="AB+">AB+</option>
                         <option value="AB-">AB-</option>
                       </select>
+                      {errors.bloodGroup && (
+                        <p className="text-red-500 text-xs mt-0.5 sm:mt-1">{errors.bloodGroup.message}</p>
+                      )}
                     </div>
 
                     <div>

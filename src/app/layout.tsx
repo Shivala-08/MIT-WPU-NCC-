@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import AuthProvider from "@/components/AuthProvider";
 import RootLayoutClient from "@/components/RootLayoutClient";
+import { getSessionUser } from "@/lib/guard";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://ncc.mitwpu.edu.in"),
@@ -68,11 +69,16 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // The role is read from the database on every render. A stale session token
+  // can never send a cadet to the admin panel or an officer to the cadet
+  // dashboard.
+  const user = await getSessionUser();
+
   return (
     <html lang="en" className="scroll-smooth">
       <head>
@@ -83,7 +89,9 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         <AuthProvider>
-          <RootLayoutClient>{children}</RootLayoutClient>
+          <RootLayoutClient role={user?.role ?? null}>
+            {children}
+          </RootLayoutClient>
         </AuthProvider>
       </body>
     </html>

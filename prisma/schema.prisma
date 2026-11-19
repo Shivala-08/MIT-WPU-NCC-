@@ -15,18 +15,48 @@ model User {
   role            UserRole       @default(CADET)
   image           String?
   approvalStatus  ApprovalStatus @default(PENDING)
+  // Who decided the approval state of the account.
+  //
+  // `approvalStatus` says what the state is. This column says who made the
+  // decision, so a decision of an administrator can never be overwritten by
+  // the automatic approval of a Google sign in. The account of a cadet that
+  // was never decided has the source NONE.
+  approvalDecisionSource ApprovalDecisionSource @default(dbgenerated("'NONE'::\"ApprovalDecisionSource\""))
   approvedAt      DateTime?
   approvedById    String?
   rejectionReason String?
   emailVerifiedAt DateTime?
   rosterId        String?        @unique
+  // Deactivation replaces the deletion of an operational account. The row and
+  // every record that points at it stay in the database, so the attendance and
+  // the leave history of the unit stays complete. A deactivated account keeps
+  // its approval state, it simply cannot be used any more.
+  deactivatedAt     DateTime?
+  deactivatedById   String?
+  deactivationReason String?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   attendances     Attendance[]
   cadetProfile    CadetProfile?
   approvedBy      User?          @relation("UserApprovals", fields: [approvedById], references: [id], onDelete: SetNull)
   approvalsGiven  User[]         @relation("UserApprovals")
+  // The administrator who performed the deactivation. The relation is kept
+  // when that administrator is removed, so the audit trail never breaks.
+  deactivatedBy   User?          @relation("UserDeactivations", fields: [deactivatedById], references: [id], onDelete: SetNull)
+  deactivations   User[]         @relation("UserDeactivations")
   roster          Roster?        @relation(fields: [rosterId], references: [id], onDelete: SetNull)
+  // Operational history. The records are kept when an account is removed so the
+  // attendance history of a unit stays complete.
+  createdSessions       AttendanceSession[] @relation("AttendanceSessionCreator")
+  markedAttendances     Attendance[]        @relation("AttendanceMarker")
+  createdManualCodes    AttendanceManualCode[] @relation("AttendanceManualCodeCreator")
+  leaveRequests         LeaveRequest[]      @relation("CadetLeaveRequests")
+  reviewedLeaveRequests LeaveRequest[]      @relation("LeaveReviews")
+
+  // The deactivation filter of the account list and of the attendance rolls.
+  // The index already exists in the database, this declaration only records
+  // it in the schema.
+  @@index([deactivatedAt])
 }
 
 enum UserRole {
@@ -41,6 +71,19 @@ enum ApprovalStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+// The origin of an approval decision.
+//
+// NONE       - no decision was made yet, the account is still waiting.
+// AUTOMATIC  - the roster matched the account and the application approved it.
+// ADMINISTRATOR - an administrator of the unit decided. The decision of an
+//                 administrator is authoritative and is never replaced by the
+//                 automatic approval of a sign in.
+enum ApprovalDecisionSource {
+  NONE
+  AUTOMATIC
+  ADMINISTRATOR
 }
 
 model Roster {
@@ -87,7 +130,9 @@ model CadetProfile {
   status           String   @default("PENDING")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // The profile is part of the historical record of the cadet. It is not
+  // removed when the account is removed.
+  user             User     @relation(fields: [userId], references: [id], onDelete: Restrict)
 }
 
 model Event {
@@ -122,28 +167,170 @@ model GalleryImage {
 }
 
 model AttendanceSession {
-  id          String       @id @default(cuid())
+  id          String                  @id @default(cuid())
   title       String
   type        String
   date        DateTime
   startTime   String?
   endTime     String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  description String?
+  venue       String?
+  // Precise window used by the server for the check-in rules. The legacy
+  // startTime/endTime strings stay for the display and the old screens.
+  startsAt    DateTime?
+  endsAt      DateTime?
+  status      AttendanceSessionStatus @default(DRAFT)
+  createdById String?
+  openedAt    DateTime?
+  closedAt    DateTime?
+  cancelReason String?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+  createdBy   User?                   @relation("AttendanceSessionCreator", fields: [createdById], references: [id], onDelete: SetNull)
   attendances Attendance[]
+  qrTokens    AttendanceQrToken[]
+  manualCodes AttendanceManualCode[]
+
+  @@index([startsAt])
+  @@index([status])
+  @@index([date])
+}
+
+// The lifecycle of an attendance session.
+enum AttendanceSessionStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+// The controlled set of attendance marks.
+//
+// PRESENT, ABSENT, ON_DUTY and LEAVE are the values the unit already used, so
+// no historical row is remapped. LATE and EXCUSED are added by phase 3.
+//
+// The status was free text before phase 3. The migration that converts the
+// column rejects every value it cannot classify instead of guessing one.
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  ON_DUTY
+  LEAVE
+  LATE
+  EXCUSED
 }
 
 model Attendance {
-  id        String            @id @default(cuid())
-  status    String            @default("ABSENT")
-  userId    String
-  sessionId String
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  session   AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String           @id @default(cuid())
+  status     AttendanceStatus @default(ABSENT)
+  userId     String
+  sessionId  String
+  // MANUAL, QR or MANUAL_CODE. The rows that existed before phase 3 carry
+  // LEGACY, because the old table never stored how they were marked.
+  method     String           @default("MANUAL")
+  note       String?
+  markedById String?
+  markedAt   DateTime         @default(now())
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  session    AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  // The record is kept when the cadet account is removed.
+  user       User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  markedBy   User?            @relation("AttendanceMarker", fields: [markedById], references: [id], onDelete: SetNull)
 
+  // One authoritative attendance record per cadet per session.
   @@unique([userId, sessionId])
+  @@index([sessionId])
+  @@index([status])
+}
+
+// An opaque, short lived check-in token. Only the hash is stored.
+model AttendanceQrToken {
+  id          String            @id @default(cuid())
+  sessionId   String
+  tokenHash   String            @unique
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdById String?
+  createdAt   DateTime          @default(now())
+  session     AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([expiresAt])
+}
+
+// The six digit fallback code of one open session.
+//
+// Only the peppered hash is stored. The raw code is shown to the staff of the
+// session and is never returned by a public API.
+model AttendanceManualCode {
+  id          String            @id @default(cuid())
+  sessionId   String
+  codeHash    String            @unique
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdById String?
+  createdAt   DateTime          @default(now())
+  session     AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdBy   User?             @relation("AttendanceManualCodeCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([sessionId])
+  @@index([expiresAt])
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+// Application categories, not official NCC leave classifications.
+enum LeaveType {
+  MEDICAL
+  PERSONAL
+  ACADEMIC
+  OTHER
+}
+
+model LeaveRequest {
+  id           String      @id @default(cuid())
+  userId       String
+  type         LeaveType
+  reason       String
+  startDate    DateTime
+  endDate      DateTime
+  status       LeaveStatus @default(PENDING)
+  reviewedById String?
+  reviewedAt   DateTime?
+  reviewReason String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  user         User        @relation("CadetLeaveRequests", fields: [userId], references: [id], onDelete: Restrict)
+  reviewedBy   User?       @relation("LeaveReviews", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([status])
+  @@index([startDate, endDate])
+}
+
+// The configurable, informational attendance calculation policy.
+//
+// thresholdConfirmed stays false until the institution confirms the rule. The
+// application never presents the threshold as an official NCC requirement
+// before that confirmation.
+model AttendancePolicy {
+  id                             String   @id @default("default")
+  version                        Int      @default(1)
+  thresholdPercent               Int      @default(75)
+  thresholdConfirmed             Boolean  @default(false)
+  lateCountsAsPresent            Boolean  @default(false)
+  excusedExcludedFromDenominator Boolean  @default(true)
+  activityTypes                  String[] @default([])
+  notes                          String?
+  updatedById                    String?
+  createdAt                      DateTime @default(now())
+  updatedAt                      DateTime @updatedAt
 }
 
 model StudyMaterial {

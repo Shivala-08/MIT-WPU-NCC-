@@ -4,7 +4,7 @@ import { authorize } from "@/lib/guard";
 import prisma from "@/lib/prisma";
 import { isApprovalStatus } from "@/lib/approval";
 import { computeProfileCompletion } from "@/lib/profile-fields.mjs";
-import { USER_PASSWORD_OMIT, stripPasswordFromRecords } from "@/lib/user-fields.mjs";
+import { USER_OMIT, stripPasswordFromRecords } from "@/lib/user-fields.mjs";
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
@@ -73,7 +73,7 @@ export async function GET(req: Request) {
       prisma.user.count({ where }),
       prisma.user.findMany({
         where,
-        omit: USER_PASSWORD_OMIT,
+        omit: USER_OMIT,
         include: {
           cadetProfile: true,
           roster: { select: { id: true, email: true, active: true } },

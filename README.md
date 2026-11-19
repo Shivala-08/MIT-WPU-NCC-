@@ -75,6 +75,13 @@ npx -y tsx prisma/seed.ts
 - `prisma migrate dev` is for local development only. It can reset the target database, so it must never be pointed at production.
 - `prisma db push` is **not** part of the normal schema-management workflow and must never be run against production.
 - The legacy SQLite files (`prisma/dev.db`, `backups/*.db`) are historical artifacts. The live database is PostgreSQL.
+- **On `ncc_dev` specifically, do not run `prisma migrate dev` until the schema drift of section *Production Schema Management* is corrected.** `prisma/schema.prisma` is missing the declaration of the index on `User.deactivatedAt`, so `migrate dev` reads the difference as *"drop this index"*. The correction is a schema-only change and needs no migration.
+- The guarded commands of this repository are the ones to use:
+  ```bash
+  npm run db:guard            # check the target of DATABASE_URL
+  npm run db:migrate:status   # read-only migration status
+  npm run db:diff             # read-only schema comparison
+  ```
 
 ### 4. Running Locally
 ```bash
@@ -136,6 +143,33 @@ No row was deleted and no password hash was touched. The mirror column was norma
 ### The public registration endpoint
 
 `POST /api/register` is an optional pre-registration that only collects the application details. It accepts college addresses only, rejects unknown fields (so a client cannot send a role, an account id or an approval state), and always creates a `CADET` in the `PENDING` state. A registered account is not usable until it is approved.
+
+### Deactivating an account
+
+An operational cadet account is **deactivated**, never deleted. The attendance
+history of the unit has to stay complete, so the account row, its attendance
+rows, its leave requests, its profile and its audit history all stay in the
+database and keep their original owner.
+
+`User.deactivatedAt` is the authoritative fact. It is read from the database on
+every request, so a deactivation takes effect immediately and a stale session
+cookie cannot keep the access open.
+
+| Route | Behaviour |
+| --- | --- |
+| `DELETE /api/admin/cadets?userId=...` | Deactivates the account. `409` for a self deactivation and for the last active administrator, `404` for an unknown account. An account that is already deactivated is reported as such and nothing is written twice. |
+| `PATCH /api/admin/cadets` with `{ "deactivated": false }` | Lifts the deactivation. The approval state of the account is not touched by it. |
+
+A deactivated account cannot sign in, gets `403` on every protected API, is
+sent to `/pending` on every protected page, cannot check in and is no longer
+offered for marking, reporting or listing. The deactivation and its audit
+event are written in one transaction.
+
+The personal data of a deactivated cadet is **not** scrubbed. The name, the
+email address, the PRN and the other identifiers stay, because the historical
+attendance has to stay attached to the person who earned it. Whether and when
+the personal data of a cadet who left the unit may be removed is a decision of
+the unit and of the university. See `docs/MIGRATION_SAFETY.md`.
 
 ---
 
@@ -267,6 +301,91 @@ npx prisma migrate deploy
 - `migrate deploy` applies the committed SQL in `prisma/migrations/` and records it in `_prisma_migrations`. It does not create a database and does not invent schema.
 - Never run `prisma migrate dev`, `prisma migrate reset`, `prisma db push`, or `prisma/seed.ts` against production.
 
+### The migration directories
+
+| Path | What it is |
+| --- | --- |
+| `prisma/migrations/` | the migrations that are applied, in order. This is the only directory `migrate deploy` reads. |
+| `prisma/baseline-candidate/` | **a historical snapshot, not the current schema.** It holds the SQL of the tables that existed before the recorded baseline. It is kept for reference and for a one-off comparison, it is never applied by `migrate deploy`, and it must not be edited to match the current schema. |
+
+Do not use `prisma/baseline-candidate/` to create or repair a database. A fresh
+database is created by applying the whole chain of `prisma/migrations/` in
+order.
+
+### Phase 3.5.3 — account deactivation and legacy compatibility
+
+The phase 3.5.3 remediation changed two migration files and added a third:
+
+| Migration | State | What it does |
+| --- | --- | --- |
+| `20261030080432_phase3_attendance_operations` | **already applied, then edited** | the silent `UPDATE ... SET status = 'ABSENT'` was replaced by a guard that aborts and names every unsupported historical status; the recognised values are normalised; `markedAt` and `method` are backfilled for the historical rows |
+| `20261030210643_phase3_manual_fallback_code` | unchanged | the manual fallback code of phase 3 |
+| `20261101090000_account_deactivation` | **new; applied to the local `ncc_dev` by hand, its history record is missing** | adds `User.deactivatedAt`, `User.deactivatedById` and `User.deactivationReason`; changes the foreign key of `CadetProfile` from `CASCADE` to `RESTRICT` |
+
+**The checksum of the edited phase 3 migration no longer matches the checksum
+stored in `_prisma_migrations` of the local development database.** The schema
+engine compares the two and stops before it applies anything, with the message
+`` `20261030080432_phase3_attendance_operations` was modified after it was applied.``
+This is **not** the error code `P3009`; `P3009` is the code of the *failed
+migrations* of a database. The reconciliation was **not** carried out by the
+phase 3.5.3 — it needs the approval of the owner of the database. The full
+procedure — the backup, the possible re-run and the disposable database that
+proves the chain from zero — is written in
+[`docs/MIGRATION_SAFETY.md`](docs/MIGRATION_SAFETY.md).
+
+The migration `20261101090000_account_deactivation` was applied to the local
+development database `ncc_dev` by hand, inside a single transaction and after a
+backup. `_prisma_migrations` was **not** edited, so `prisma migrate status` still
+reports that migration as pending. The columns, the index and the two foreign
+keys are in place, so the application works; the next `migrate deploy` needs
+the reconciliation anyway.
+
+> **Neither of the two migrations may be replayed.** The phase 3 migration
+> aborts on a second run with `function btrim("AttendanceStatus") does not
+> exist`, because its status guard calls `btrim()` on a column that is already
+> the enum after the first run. The account deactivation migration fails on its
+> first statement, `ALTER TABLE "User" ADD COLUMN "deactivatedAt"`, because it
+> has no `IF NOT EXISTS` guard. **Never repair the history with
+> `prisma migrate deploy` against `ncc_dev`** — it would leave a *failed*
+> migration row behind. `prisma migrate resolve --applied` is the only
+> sanctioned way to record a migration, and it refuses with `P3008` when the
+> migration is already recorded as applied.
+
+> **`prisma migrate status` does not report the checksum conflict.** It only
+> lists the pending migration. The checksum conflict appears when a deploy is
+> attempted.
+
+Before a deployment, read that document. It also records the compatibility
+rules for the legacy attendance statuses and for the legacy activity types,
+and it names the legacy values that still need a decision of the unit.
+
+### The two migration tests — both are required
+
+A migration chain that applies cleanly to an empty database does **not** prove
+that the historical attendance survives. Two separate tests are required:
+
+1. **Fresh-database validation.** The complete chain is applied to a
+   disposable PostgreSQL database that is created for the purpose and dropped
+   afterwards. It proves that the chain is reproducible and that the resulting
+   schema matches `prisma/schema.prisma`. `ncc_dev` is never used for this.
+2. **Historical-data validation.** A representative set of legacy rows
+   (`PRESENT`, `ABSENT`, `ON_DUTY`, `LEAVE`, the legacy spellings of the
+   activity types, and rows that were marked before the migration) is carried
+   over the old schema and the chain is applied over them. It proves that no
+   historical row changes its meaning, that `markedAt` keeps the creation time
+   and that `method` stays `LEGACY`.
+
+Neither test replaces the other.
+
+### The backup that exists today
+
+The dump `ncc-dev-pre-deactivation-20261102-024155.dump` was taken **before**
+the account deactivation migration was applied, so it does not contain the
+`deactivatedAt` columns and it still carries the old `ON DELETE CASCADE`
+foreign key of the profile. Restoring it would undo phase 3.5.3. **A new
+backup has to be taken immediately before the reconciliation**, and it has to
+be verified with `pg_restore --list` before it is relied upon.
+
 ### Backup and recovery precautions
 
 1. **Back up before every production migration.** Create a Supabase restore point in the Dashboard (Database → Backups) and, for extra safety, take an on-demand dump:
@@ -294,6 +413,7 @@ npx prisma migrate deploy
 3. Configure Environment Variables in Vercel Project Settings (Production and Preview):
    - `DATABASE_URL`: Production PostgreSQL connection string, using the Supabase **session pooler** endpoint (see *Database Connection*). Required at build time (Prisma Client construction) and at runtime.
    - `NEXTAUTH_SECRET` (or `AUTH_SECRET`): A secure 32+ character random string (generate with `openssl rand -base64 32`).
+- `AUDIT_HASH_KEY`: **Required in production.** A dedicated random string of at least 16 characters (generate with `openssl rand -hex 32`) that keys the HMAC references of the email addresses in the audit trail. It must be different from `NEXTAUTH_SECRET`, `AUTH_SECRET` and `ATTENDANCE_CODE_SECRET`. Without it the audit trail refuses every write in production, and the business transaction of the change is rolled back with it (see `docs/MIGRATION_EQUIVALENCE_ANALYSIS.md`, section 11).
    - `NEXTAUTH_URL`: Your custom domain or Vercel deployment URL (e.g. `https://ncc-mitwpu.vercel.app`).
    - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`: Google OAuth credentials for the existing sign-in provider.
    - `NEXT_PUBLIC_APP_URL`: Public base URL of the deployed site.

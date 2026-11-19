@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/guard";
+import { getSessionUser, isApprovedAccount } from "@/lib/guard";
 import prisma from "@/lib/prisma";
 import { serializeProfile, ensureProfileForUser } from "@/lib/profile-service.mjs";
 import { FIELD_LABELS, FIELD_OWNERSHIP } from "@/lib/profile-fields.mjs";
@@ -18,7 +18,7 @@ export default async function ProfilePage() {
     redirect("/login");
   }
 
-  if (user.approvalStatus !== "APPROVED") {
+  if (!isApprovedAccount(user)) {
     redirect("/pending");
   }
 

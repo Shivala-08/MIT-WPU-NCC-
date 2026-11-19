@@ -3,7 +3,6 @@
 import Image from "next/image";
 import {
   Shield,
-  Target,
   Users,
   Award,
   Heart,

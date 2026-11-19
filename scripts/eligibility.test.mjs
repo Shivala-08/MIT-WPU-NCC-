@@ -4,10 +4,15 @@ import { test } from "node:test";
 import {
   APPROVAL_STATUSES,
   decideRosterApproval,
+  effectiveDecisionSource,
   isAllowedCollegeEmail,
   isApprovalStatus,
   isDisallowedPersonalDomain,
+  isRosterEntryActive,
+  isRosterMatch,
   mapLegacyProfileStatus,
+  normalizeApprovalDecisionSource,
+  normalizeApprovalStatus,
   normalizeEmail,
   parseAllowedEmailDomains,
   reconcileApprovalStatus,
@@ -111,29 +116,129 @@ test("the roster decision never overrides a rejection", () => {
       approvalStatus: "REJECTED",
       rosterEntry: { active: true },
     }),
-    { approvalStatus: "REJECTED", source: "EXISTING" }
+    { approvalStatus: "REJECTED", decisionSource: "NONE", autoApproved: false }
   );
   assert.deepEqual(
     decideRosterApproval({
       approvalStatus: "PENDING",
       rosterEntry: { active: true },
     }),
-    { approvalStatus: "APPROVED", source: "ROSTER" }
+    { approvalStatus: "APPROVED", decisionSource: "AUTOMATIC", autoApproved: true }
   );
   assert.deepEqual(
     decideRosterApproval({
       approvalStatus: "PENDING",
       rosterEntry: { active: false },
     }),
-    { approvalStatus: "PENDING", source: "DEFAULT" }
+    { approvalStatus: "PENDING", decisionSource: "NONE", autoApproved: false }
   );
   assert.deepEqual(
     decideRosterApproval({
       approvalStatus: null,
       rosterEntry: null,
     }),
-    { approvalStatus: "PENDING", source: "DEFAULT" }
+    { approvalStatus: "PENDING", decisionSource: "NONE", autoApproved: false }
   );
+});
+
+test("a decision of an administrator is never replaced by the automatic path", () => {
+  // The administrator put the account back into PENDING. The roster matches
+  // the account, but the automatic path must not approve it.
+  assert.deepEqual(
+    decideRosterApproval({
+      approvalStatus: "PENDING",
+      decisionSource: "ADMINISTRATOR",
+      rosterEntry: { active: true },
+    }),
+    { approvalStatus: "PENDING", decisionSource: "ADMINISTRATOR", autoApproved: false }
+  );
+
+  // The same account without the column, but with the administrator id, is
+  // protected in exactly the same way.
+  assert.deepEqual(
+    decideRosterApproval({
+      approvalStatus: "PENDING",
+      decisionSource: "ADMINISTRATOR",
+      rosterEntry: { active: true },
+    }),
+    { approvalStatus: "PENDING", decisionSource: "ADMINISTRATOR", autoApproved: false }
+  );
+
+  // A rejected account stays rejected, whatever the roster says.
+  assert.deepEqual(
+    decideRosterApproval({
+      approvalStatus: "REJECTED",
+      decisionSource: "ADMINISTRATOR",
+      rosterEntry: { active: true },
+    }),
+    { approvalStatus: "REJECTED", decisionSource: "ADMINISTRATOR", autoApproved: false }
+  );
+
+  // An approved account keeps its state and its source.
+  assert.deepEqual(
+    decideRosterApproval({
+      approvalStatus: "APPROVED",
+      decisionSource: "ADMINISTRATOR",
+      rosterEntry: { active: false },
+    }),
+    { approvalStatus: "APPROVED", decisionSource: "ADMINISTRATOR", autoApproved: false }
+  );
+});
+
+test("the effective decision source reads the administrator id as a second signal", () => {
+  assert.equal(effectiveDecisionSource({}), "NONE");
+  assert.equal(effectiveDecisionSource({ approvalDecisionSource: "NONE" }), "NONE");
+  assert.equal(
+    effectiveDecisionSource({ approvalDecisionSource: "AUTOMATIC" }),
+    "AUTOMATIC"
+  );
+  assert.equal(
+    effectiveDecisionSource({ approvalDecisionSource: "ADMINISTRATOR" }),
+    "ADMINISTRATOR"
+  );
+
+  // The administrator id is never ignored, because a decision that was
+  // recorded before the column existed still has to be authoritative.
+  assert.equal(
+    effectiveDecisionSource({ approvedById: "admin-1" }),
+    "ADMINISTRATOR"
+  );
+  assert.equal(
+    effectiveDecisionSource({
+      approvalDecisionSource: "AUTOMATIC",
+      approvedById: "admin-1",
+    }),
+    "ADMINISTRATOR"
+  );
+});
+
+test("the approval filters are normalised to their canonical spelling", () => {
+  assert.equal(normalizeApprovalStatus("approved"), "APPROVED");
+  assert.equal(normalizeApprovalStatus(" Pending "), "PENDING");
+  assert.equal(normalizeApprovalStatus("rejected"), "REJECTED");
+  assert.equal(normalizeApprovalStatus("unknown"), null);
+  assert.equal(normalizeApprovalStatus(undefined), null);
+
+  assert.equal(normalizeApprovalDecisionSource("automatic"), "AUTOMATIC");
+  assert.equal(
+    normalizeApprovalDecisionSource(" administrator "),
+    "ADMINISTRATOR"
+  );
+  assert.equal(normalizeApprovalDecisionSource("none"), "NONE");
+  assert.equal(normalizeApprovalDecisionSource("robot"), null);
+
+  assert.equal(isApprovalStatus("approved"), true);
+  assert.equal(isApprovalStatus("nonsense"), false);
+});
+
+test("an inactive roster row is not a match and an account without a row is not blocked", () => {
+  assert.equal(isRosterEntryActive(null), true);
+  assert.equal(isRosterEntryActive({ active: true }), true);
+  assert.equal(isRosterEntryActive({ active: false }), false);
+
+  assert.equal(isRosterMatch(null), false);
+  assert.equal(isRosterMatch({ active: true }), true);
+  assert.equal(isRosterMatch({ active: false }), false);
 });
 
 test("a roster CSV is parsed with its header aliases", () => {

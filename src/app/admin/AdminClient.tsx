@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
+import { formatCalendarDate } from "@/lib/calendar-date.mjs";
 
 import {
   Shield,
+  ShieldAlert,
   Users,
   Calendar,
   BookOpen,
@@ -15,6 +16,7 @@ import {
 
   Plus,
   Trash2,
+  UserX,
   CheckCircle,
   Check,
   Clock,
@@ -25,6 +27,7 @@ import {
   ExternalLink,
   type LucideIcon,
 } from "lucide-react";
+import ConfirmDialog from "@/components/attendance/ConfirmDialog";
 
 interface Attendance {
   id: string;
@@ -40,6 +43,12 @@ interface Cadet {
   name: string;
   email: string;
   approvalStatus: string;
+  /**
+   * The moment the account was deactivated, or null while it is active.
+   * A deactivated cadet is not deleted. Its attendance history, its leave
+   * requests and its profile stay in the database.
+   */
+  deactivatedAt: string | Date | null;
   cadetProfile: {
     fullName: string;
     regiNumber: string | null;
@@ -130,12 +139,11 @@ export default function AdminClient({
   initialMessages,
   stats,
 }: AdminClientProps) {
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
 
   // State collections
   const [cadets, setCadets] = useState(initialCadets);
-  const [sessions, setSessions] = useState(initialSessions);
+  const [sessions] = useState(initialSessions);
   const [materials, setMaterials] = useState(initialMaterials);
   const [announcements, setAnnouncements] = useState(initialAnnouncements);
   const [messages] = useState(initialMessages);
@@ -144,19 +152,6 @@ export default function AdminClient({
   const [cadetSearch, setCadetSearch] = useState("");
   const [cadetWingFilter, setCadetWingFilter] = useState("ALL");
   const [cadetStatusFilter, setCadetStatusFilter] = useState("ALL");
-
-  // Attendance creation form
-  const [sessionForm, setSessionForm] = useState({
-    title: "",
-    type: "Parade",
-    date: new Date().toISOString().split("T")[0],
-    startTime: "06:30",
-    endTime: "09:30",
-  });
-  const [attendanceMarks, setAttendanceMarks] = useState<
-    Record<string, "PRESENT" | "ABSENT" | "ON_DUTY" | "LEAVE">
-  >({});
-  const [isSubmittingAttendance, setIsSubmittingAttendance] = useState(false);
 
   // Material form
   const [materialForm, setMaterialForm] = useState({
@@ -176,10 +171,20 @@ export default function AdminClient({
 
   // Action feedback
   const [toastMessage, setToastMessage] = useState("");
+  const [toastTone, setToastTone] = useState<"success" | "error">("success");
 
-  const showToast = (msg: string) => {
+  // Deactivation of a cadet account. The account is never deleted, so the
+  // administrator confirms the action in a dialog and sees the result of it.
+  const [deactivationTarget, setDeactivationTarget] = useState<Cadet | null>(
+    null
+  );
+  const [deactivationBusy, setDeactivationBusy] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const showToast = (msg: string, tone: "success" | "error" = "success") => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(""), 4000);
+    setToastTone(tone);
+    setTimeout(() => setToastMessage(""), 6000);
   };
 
   // --- CADET ACTIONS ---
@@ -208,31 +213,152 @@ export default function AdminClient({
         showToast(`Cadet status updated to ${status}`);
       } else {
         const payload = await res.json().catch(() => ({}));
-        showToast(payload.error || "Failed to update cadet status");
+        showToast(
+          payload.error || "Failed to update cadet status",
+          "error"
+        );
       }
     } catch {
-      showToast("Failed to update cadet status");
+      showToast("Failed to update cadet status", "error");
     }
   };
 
-  const handleDeleteCadet = async (userId: string) => {
-    if (!confirm("Are you sure you want to delete this cadet profile?")) return;
+  /**
+   * Deactivates a cadet account.
+   *
+   * The account is not deleted. The attendance history, the leave requests,
+   * the profile and the audit history stay in the database and keep their
+   * original owner. The account simply cannot be used any more.
+   */
+  const handleDeactivateCadet = async (reason: string) => {
+    if (!deactivationTarget) return;
+
+    setDeactivationBusy(true);
+
     try {
-      const res = await fetch(`/api/admin/cadets?userId=${userId}`, {
+      const params = new URLSearchParams({ userId: deactivationTarget.id });
+      if (reason.trim().length > 0) {
+        params.set("reason", reason.trim());
+      }
+
+      const res = await fetch(`/api/admin/cadets?${params.toString()}`, {
         method: "DELETE",
       });
-      if (res.ok) {
-        setCadets((prev) => prev.filter((c) => c.id !== userId));
-        showToast("Cadet record deleted");
+
+      const payload = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        showToast(
+          payload.error || "Failed to deactivate the cadet account",
+          "error"
+        );
+        return;
       }
+
+      const deactivatedAt =
+        payload.deactivatedAt ?? new Date().toISOString();
+
+      // The new state is reflected in the table right away.
+      setCadets((prev) =>
+        prev.map((c) =>
+          c.id === deactivationTarget.id ? { ...c, deactivatedAt } : c
+        )
+      );
+
+      setDeactivationTarget(null);
+
+      showToast(
+        payload.alreadyDeactivated
+          ? "This account was already deactivated."
+          : "Cadet account deactivated. The attendance history, the leave requests and the profile are kept."
+      );
     } catch {
-      showToast("Failed to delete cadet");
+      showToast("Failed to deactivate the cadet account", "error");
+    } finally {
+      setDeactivationBusy(false);
     }
   };
 
-  const exportCadetsToExcel = () => {
-    router.push("/api/admin/cadets/export");
-    showToast("Excel spreadsheet downloaded successfully");
+  const handleReactivateCadet = async (userId: string) => {
+    try {
+      const res = await fetch("/api/admin/cadets", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, deactivated: false }),
+      });
+
+      const payload = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        showToast(
+          payload.error || "Failed to reactivate the cadet account",
+          "error"
+        );
+        return;
+      }
+
+      setCadets((prev) =>
+        prev.map((c) =>
+          c.id === userId ? { ...c, deactivatedAt: null } : c
+        )
+      );
+
+      showToast(
+        payload.alreadyActive
+          ? "This account was already active."
+          : "Cadet account reactivated."
+      );
+    } catch {
+      showToast("Failed to reactivate the cadet account", "error");
+    }
+  };
+
+  /**
+   * Downloads the spreadsheet of the cadets.
+   *
+   * The success message is only shown when the server really delivered the
+   * file. A navigation to the export route reports a success even when the
+   * export failed, and the administrator believes that the spreadsheet exists.
+   */
+  const exportCadetsToExcel = async () => {
+    setIsExporting(true);
+
+    try {
+      const res = await fetch("/api/admin/cadets/export");
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+
+        showToast(
+          payload.error || "The spreadsheet could not be exported",
+          "error"
+        );
+
+        return;
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get("content-disposition") ?? "";
+      const filename =
+        /filename="?([^";]+)"?/.exec(disposition)?.[1] ??
+        "NCC_MITWPU_Cadets.xlsx";
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+
+      showToast("Excel spreadsheet downloaded successfully");
+    } catch {
+      showToast("The spreadsheet could not be exported", "error");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const filteredCadets = cadets.filter((c) => {
@@ -251,63 +377,6 @@ export default function AdminClient({
 
     return matchesSearch && matchesWing && matchesStatus;
   });
-
-  const approvedCadets = cadets.filter((c) => c.approvalStatus === "APPROVED");
-
-  // --- ATTENDANCE ACTIONS ---
-  const handleMarkAllPresent = () => {
-    const initialMarks: Record<string, "PRESENT" | "ABSENT" | "ON_DUTY" | "LEAVE"> = {};
-    approvedCadets.forEach((c) => {
-      initialMarks[c.id] = "PRESENT";
-    });
-    setAttendanceMarks(initialMarks);
-    showToast("All approved cadets marked Present");
-  };
-
-  const handleCreateSession = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (approvedCadets.length === 0) {
-      alert("No approved cadets found to log attendance for.");
-      return;
-    }
-
-    setIsSubmittingAttendance(true);
-    const marksPayload = approvedCadets.map((c) => ({
-      userId: c.id,
-      status: attendanceMarks[c.id] || "PRESENT",
-    }));
-
-    try {
-      const res = await fetch("/api/admin/attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...sessionForm,
-          marks: marksPayload,
-        }),
-      });
-
-      const resData = await res.json();
-      if (res.ok) {
-        setSessions([resData.session, ...sessions]);
-        showToast("Attendance session recorded successfully!");
-        setSessionForm({
-          title: "",
-          type: "Parade",
-          date: new Date().toISOString().split("T")[0],
-          startTime: "06:30",
-          endTime: "09:30",
-        });
-        setAttendanceMarks({});
-      } else {
-        alert(resData.error || "Failed to log attendance");
-      }
-    } catch {
-      alert("Error submitting session attendance");
-    } finally {
-      setIsSubmittingAttendance(false);
-    }
-  };
 
   // --- STUDY MATERIAL ACTIONS ---
   const handleCreateMaterial = async (e: React.FormEvent) => {
@@ -329,9 +398,15 @@ export default function AdminClient({
           description: "",
         });
         showToast("Study material added successfully!");
+      } else {
+        const payload = await res.json().catch(() => ({}));
+        showToast(
+          payload.error || "The study material could not be added",
+          "error"
+        );
       }
     } catch {
-      showToast("Error adding material");
+      showToast("Error adding material", "error");
     }
   };
 
@@ -343,9 +418,12 @@ export default function AdminClient({
       if (res.ok) {
         setMaterials((prev) => prev.filter((m) => m.id !== id));
         showToast("Material removed");
+      } else {
+        const payload = await res.json().catch(() => ({}));
+        showToast(payload.error || "Failed to delete", "error");
       }
     } catch {
-      showToast("Failed to delete");
+      showToast("Failed to delete", "error");
     }
   };
 
@@ -363,9 +441,15 @@ export default function AdminClient({
         setAnnouncements([data.announcement, ...announcements]);
         setAnnouncementForm({ title: "", content: "", priority: "1" });
         showToast("Announcement published!");
+      } else {
+        const payload = await res.json().catch(() => ({}));
+        showToast(
+          payload.error || "The announcement could not be published",
+          "error"
+        );
       }
     } catch {
-      showToast("Error posting announcement");
+      showToast("Error posting announcement", "error");
     }
   };
 
@@ -377,9 +461,12 @@ export default function AdminClient({
       if (res.ok) {
         setAnnouncements((prev) => prev.filter((a) => a.id !== id));
         showToast("Announcement deleted");
+      } else {
+        const payload = await res.json().catch(() => ({}));
+        showToast(payload.error || "Failed to delete", "error");
       }
     } catch {
-      showToast("Failed to delete");
+      showToast("Failed to delete", "error");
     }
   };
 
@@ -387,8 +474,20 @@ export default function AdminClient({
     <div className="min-h-screen bg-gray-100 flex flex-col">
       {/* Toast */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-ncc-dark-blue text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2 border border-ncc-gold/40 text-sm">
-          <CheckCircle className="w-4 h-4 text-emerald-400" />
+        <div
+          role="status"
+          aria-live="polite"
+          className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-2 text-sm ${
+            toastTone === "error"
+              ? "bg-red-700 text-white border border-red-300"
+              : "bg-ncc-dark-blue text-white border border-ncc-gold/40"
+          }`}
+        >
+          {toastTone === "error" ? (
+            <ShieldAlert className="w-4 h-4 text-red-200" />
+          ) : (
+            <CheckCircle className="w-4 h-4 text-emerald-400" />
+          )}
           <span>{toastMessage}</span>
         </div>
       )}
@@ -411,6 +510,30 @@ export default function AdminClient({
           </div>
 
           <div className="flex items-center gap-4">
+            <Link
+              href="/admin/attendance"
+              className="text-xs text-white/80 hover:text-white flex items-center gap-1"
+            >
+              Attendance
+            </Link>
+            <Link
+              href="/admin/leave"
+              className="text-xs text-white/80 hover:text-white flex items-center gap-1"
+            >
+              Leave
+            </Link>
+            <Link
+              href="/admin/reports/attendance"
+              className="text-xs text-white/80 hover:text-white flex items-center gap-1"
+            >
+              Reports
+            </Link>
+            <Link
+              href="/admin/audit"
+              className="text-xs text-white/80 hover:text-white flex items-center gap-1"
+            >
+              Audit
+            </Link>
             <Link
               href="/"
               target="_blank"
@@ -643,12 +766,7 @@ export default function AdminClient({
                         <div>
                           <h4 className="font-bold text-sm text-gray-900">{s.title}</h4>
                           <p className="text-xs text-gray-500">
-                            {new Date(s.date).toLocaleDateString("en-IN", {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            })}{" "}
-                            • {s.type}
+                            {formatCalendarDate(s.date)} • {s.type}
                           </p>
                         </div>
                         <span className="text-xs font-semibold text-ncc-dark-blue bg-ncc-light-blue/20 px-3 py-1 rounded-full">
@@ -687,8 +805,10 @@ export default function AdminClient({
                   <Users className="w-4 h-4" /> Cadet directory
                 </Link>
                 <button
-                  onClick={exportCadetsToExcel}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-md"
+                  type="button"
+                  onClick={() => void exportCadetsToExcel()}
+                  disabled={isExporting}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-md disabled:opacity-50"
                 >
                   <FileSpreadsheet className="w-4 h-4" /> Export to Excel (.xlsx)
                 </button>
@@ -786,21 +906,32 @@ export default function AdminClient({
                           {p?.bloodGroup || "N/A"}
                         </td>
                         <td className="py-3.5 px-3">
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                              c.approvalStatus === "APPROVED"
-                                ? "bg-emerald-100 text-emerald-800"
-                                : c.approvalStatus === "PENDING"
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-red-100 text-red-800"
-                            }`}
-                          >
-                            {c.approvalStatus}
-                          </span>
+                          {c.deactivatedAt ? (
+                            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-200 text-slate-700 block">
+                              DEACTIVATED
+                            </span>
+                          ) : (
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                                c.approvalStatus === "APPROVED"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : c.approvalStatus === "PENDING"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              {c.approvalStatus}
+                            </span>
+                          )}
+                          {c.deactivatedAt ? (
+                            <span className="block text-[10px] text-slate-500 mt-1">
+                              History kept
+                            </span>
+                          ) : null}
                         </td>
                         <td className="py-3.5 px-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            {c.approvalStatus !== "APPROVED" && (
+                            {!c.deactivatedAt && c.approvalStatus !== "APPROVED" && (
                               <button
                                 onClick={() => handleCadetStatus(c.id, "APPROVED")}
                                 title="Approve Cadet"
@@ -809,7 +940,7 @@ export default function AdminClient({
                                 <Check className="w-4 h-4" />
                               </button>
                             )}
-                            {c.approvalStatus !== "REJECTED" && (
+                            {!c.deactivatedAt && c.approvalStatus !== "REJECTED" && (
                               <button
                                 onClick={() => handleCadetStatus(c.id, "REJECTED")}
                                 title="Reject Application"
@@ -818,13 +949,23 @@ export default function AdminClient({
                                 <X className="w-4 h-4" />
                               </button>
                             )}
-                            <button
-                              onClick={() => handleDeleteCadet(c.id)}
-                              title="Delete Cadet"
-                              className="p-1.5 rounded-lg bg-red-50 hover:bg-red-600 hover:text-white text-red-600 transition-all"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            {c.deactivatedAt ? (
+                              <button
+                                onClick={() => handleReactivateCadet(c.id)}
+                                title="Reactivate Cadet Account"
+                                className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 transition-all"
+                              >
+                                <Check className="w-4 h-4" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setDeactivationTarget(c)}
+                                title="Deactivate Cadet Account"
+                                className="p-1.5 rounded-lg bg-red-50 hover:bg-red-600 hover:text-white text-red-600 transition-all"
+                              >
+                                <UserX className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -839,149 +980,51 @@ export default function AdminClient({
         {/* TAB 3: ATTENDANCE SYSTEM */}
         {activeTab === "attendance" && (
           <div className="space-y-8">
-            {/* Create Session & Mark Attendance Form */}
+            {/* The attendance operations live in the phase 3 screens. */}
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-sm">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-6 mb-6">
-                <div>
-                  <h2 className="font-heading font-black text-2xl text-gray-900">
-                    Log Training Attendance
-                  </h2>
-                  <p className="text-gray-500 text-xs sm:text-sm mt-1">
-                    Select drill, parade, or camp and mark rolls for all approved cadets
+              <h2 className="font-heading font-black text-2xl text-gray-900">
+                Attendance operations
+              </h2>
+              <p className="text-gray-500 text-xs sm:text-sm mt-1">
+                Create a session, open it, mark the roll, run the QR check-in and
+                review every change in the audit history.
+              </p>
+
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <Link
+                  href="/admin/attendance"
+                  className="p-4 rounded-2xl border border-gray-200 hover:border-ncc-dark-blue hover:bg-gray-50 transition-colors"
+                >
+                  <p className="font-bold text-sm text-gray-900">
+                    Attendance sessions
                   </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleMarkAllPresent}
-                  className="px-4 py-2 bg-ncc-dark-blue hover:bg-ncc-dark-blue/90 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+                  <p className="text-xs text-gray-500 mt-1">
+                    Create, open, close and cancel the sessions of the unit.
+                  </p>
+                </Link>
+
+                <Link
+                  href="/admin/reports/attendance"
+                  className="p-4 rounded-2xl border border-gray-200 hover:border-ncc-dark-blue hover:bg-gray-50 transition-colors"
                 >
-                  <Check className="w-4 h-4 text-ncc-gold" /> Bulk Mark All Present
-                </button>
+                  <p className="font-bold text-sm text-gray-900">
+                    Attendance reports
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    The attendance of the unit, the policy and the CSV export.
+                  </p>
+                </Link>
+
+                <Link
+                  href="/admin/audit"
+                  className="p-4 rounded-2xl border border-gray-200 hover:border-ncc-dark-blue hover:bg-gray-50 transition-colors"
+                >
+                  <p className="font-bold text-sm text-gray-900">Audit history</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Every change to a session, a mark, a leave or the policy.
+                  </p>
+                </Link>
               </div>
-
-              <form onSubmit={handleCreateSession} className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                      Session / Parade Title *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Saturday Morning Foot Drill & Firing Practice"
-                      value={sessionForm.title}
-                      onChange={(e) =>
-                        setSessionForm({ ...sessionForm, title: e.target.value })
-                      }
-                      className="w-full px-4 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                      Session Type *
-                    </label>
-                    <select
-                      value={sessionForm.type}
-                      onChange={(e) =>
-                        setSessionForm({ ...sessionForm, type: e.target.value })
-                      }
-                      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white"
-                    >
-                      <option value="Parade">Parade Drill</option>
-                      <option value="Weapon Firing">Weapon Firing</option>
-                      <option value="Camp">Camp (CATC/TSC/RDC)</option>
-                      <option value="Social Service">Social Service Event</option>
-                      <option value="Lecture">Theory / Exam Lecture</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                      Date *
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={sessionForm.date}
-                      onChange={(e) =>
-                        setSessionForm({ ...sessionForm, date: e.target.value })
-                      }
-                      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"
-                    />
-                  </div>
-                </div>
-
-                {/* Cadet Marking Roll */}
-                <div className="border rounded-2xl p-4 bg-gray-50/50">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">
-                    Roll Call ({approvedCadets.length} Approved Cadets)
-                  </h3>
-                  {approvedCadets.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto pr-1">
-                      {approvedCadets.map((c) => {
-                        const currentStatus = attendanceMarks[c.id] || "PRESENT";
-                        return (
-                          <div
-                            key={c.id}
-                            className="p-3 rounded-xl bg-white border border-gray-200 flex items-center justify-between"
-                          >
-                            <div>
-                              <p className="font-bold text-xs text-gray-900">
-                                {c.cadetProfile?.fullName || c.name}
-                              </p>
-                              <p className="text-[10px] text-gray-500">
-                                {c.cadetProfile?.wing} • {c.cadetProfile?.regiNumber || "Reg No Pending"}
-                              </p>
-                            </div>
-                            <div className="flex gap-1">
-                              {(["PRESENT", "ABSENT", "ON_DUTY", "LEAVE"] as const).map(
-                                (st) => (
-                                  <button
-                                    key={st}
-                                    type="button"
-                                    onClick={() =>
-                                      setAttendanceMarks((prev) => ({
-                                        ...prev,
-                                        [c.id]: st,
-                                      }))
-                                    }
-                                    className={`px-2 py-1 rounded text-[10px] font-bold transition-all ${
-                                      currentStatus === st
-                                        ? st === "PRESENT"
-                                          ? "bg-emerald-600 text-white"
-                                          : st === "ABSENT"
-                                          ? "bg-red-600 text-white"
-                                          : st === "ON_DUTY"
-                                          ? "bg-blue-600 text-white"
-                                          : "bg-amber-600 text-white"
-                                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                                    }`}
-                                  >
-                                    {st === "ON_DUTY" ? "OD" : st[0]}
-                                  </button>
-                                )
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-gray-400 py-4 text-center">
-                      No approved cadets found. Please approve pending cadet applications first.
-                    </p>
-                  )}
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isSubmittingAttendance || approvedCadets.length === 0}
-                  className="px-6 py-3 rounded-xl bg-ncc-red hover:bg-ncc-red-light disabled:opacity-50 text-white font-bold text-sm shadow-md transition-all flex items-center gap-2"
-                >
-                  {isSubmittingAttendance ? "Saving Roll..." : "Save Attendance Session"}
-                </button>
-              </form>
             </div>
 
             {/* Attendance History & Past Sessions */}
@@ -999,12 +1042,7 @@ export default function AdminClient({
                       <div>
                         <h4 className="font-bold text-sm text-gray-900">{s.title}</h4>
                         <p className="text-xs text-gray-500">
-                          {new Date(s.date).toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })}{" "}
-                          • Type: {s.type}
+                          {formatCalendarDate(s.date)} • Type: {s.type}
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -1285,11 +1323,7 @@ export default function AdminClient({
                         </p>
                       </div>
                       <span className="text-[11px] text-gray-400">
-                        {new Date(m.createdAt).toLocaleDateString("en-IN", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
+                        {formatCalendarDate(m.createdAt)}
                       </span>
                     </div>
                     <p className="text-xs text-gray-700 bg-white p-3 rounded-xl border border-gray-100 leading-relaxed mt-2">
@@ -1340,6 +1374,34 @@ export default function AdminClient({
           </div>
         )}
       </main>
+
+      <ConfirmDialog
+        open={deactivationTarget !== null}
+        tone="danger"
+        title="Deactivate this cadet account?"
+        description={
+          deactivationTarget
+            ? `${deactivationTarget.name} (${deactivationTarget.email}) will not be able to sign in and will not be able to use the cadet portal any more.\n\nThe account is not deleted. The attendance history, the leave requests, the profile and the audit history stay in the database and keep their original owner.\n\nThe name, the email address and the other identifiers of the cadet are not changed.`
+            : ""
+        }
+        confirmLabel="Deactivate account"
+        busy={deactivationBusy}
+        reason={{
+          label: "Reason for the deactivation",
+          placeholder:
+            "For example: the cadet left the unit after the 2026 intake.",
+          helper:
+            "The reason is stored in the audit history. It needs at least 5 characters.",
+          required: true,
+          minLength: 5,
+        }}
+        onConfirm={handleDeactivateCadet}
+        onCancel={() => {
+          if (!deactivationBusy) {
+            setDeactivationTarget(null);
+          }
+        }}
+      />
     </div>
   );
 }

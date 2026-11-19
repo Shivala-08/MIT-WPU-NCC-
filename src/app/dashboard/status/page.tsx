@@ -1,8 +1,8 @@
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/guard";
+import { getSessionUser, isApprovedAccount } from "@/lib/guard";
 import prisma from "@/lib/prisma";
-import { USER_PASSWORD_OMIT } from "@/lib/user-fields.mjs";
+import { USER_OMIT } from "@/lib/user-fields.mjs";
 import Link from "next/link";
 import { Shield, Clock, CheckCircle2, XCircle, AlertCircle, User, Mail, Loader2 } from "lucide-react";
 
@@ -62,29 +62,6 @@ function StatusIcon({ icon: Icon, color }: { icon: React.ComponentType<{ classNa
   return <Icon className={`w-6 h-6 ${color}`} />;
 }
 
-function StatusStep({ step, current, config }: { step: number; current: number; config: typeof statusConfig[StatusKey] }) {
-  const isActive = step <= current;
-  const isCurrent = step === current;
-  return (
-    <div className="flex items-center gap-2">
-      <div className="flex items-center justify-center w-10 h-10 rounded-full border-2 text-sm font-bold transition-all">
-        {isActive ? (
-          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-        ) : step}
-      </div>
-      <div className="hidden sm:block">
-        <p className={`text-xs font-bold ${isActive ? "text-emerald-700" : "text-gray-400"}`}>
-          {config.label}
-        </p>
-        <p className="text-[10px] text-gray-500">{config.description}</p>
-      </div>
-      {step < 4 && (
-        <div className={`h-2 flex-1 max-w-24 rounded transition-colors ${isActive ? "bg-emerald-500" : "bg-gray-200"}`} />
-      )}
-    </div>
-  );
-}
-
 export default async function ApplicationStatusPage() {
   const user = await getSessionUser();
 
@@ -92,7 +69,7 @@ export default async function ApplicationStatusPage() {
     redirect("/login");
   }
 
-  if (user.approvalStatus !== "APPROVED") {
+  if (!isApprovedAccount(user)) {
     redirect("/pending");
   }
 
@@ -102,7 +79,7 @@ export default async function ApplicationStatusPage() {
 
   const dbUser = await prisma.user.findUnique({
     where: { id: user.id },
-    omit: USER_PASSWORD_OMIT,
+    omit: USER_OMIT,
     include: {
       cadetProfile: true,
     },

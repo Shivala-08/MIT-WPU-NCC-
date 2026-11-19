@@ -1,4 +1,7 @@
-export const USER_PASSWORD_OMIT: Readonly<{ password: true }>;
+export const USER_OMIT: Readonly<{
+  password: true;
+  approvalDecisionSource: true;
+}>;
 
 export function stripPassword<T>(record: T): T;
 export function stripPasswordFromRecords<T>(records: T[]): T[];

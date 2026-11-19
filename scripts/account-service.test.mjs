@@ -14,6 +14,7 @@ function createFixtureDb({ users = [], roster = [] } = {}) {
   const state = {
     users: users.map((user) => ({ ...user })),
     roster: roster.map((entry) => ({ ...entry })),
+    profiles: [],
     audits: [],
     counter: 0,
   };
@@ -42,6 +43,9 @@ function createFixtureDb({ users = [], roster = [] } = {}) {
           rejectionReason: data.rejectionReason ?? null,
           emailVerifiedAt: data.emailVerifiedAt ?? null,
           rosterId: data.rosterId ?? null,
+          deactivatedAt: data.deactivatedAt ?? null,
+          deactivatedById: data.deactivatedById ?? null,
+          deactivationReason: data.deactivationReason ?? null,
         };
         state.users.push(user);
         return user;
@@ -61,6 +65,33 @@ function createFixtureDb({ users = [], roster = [] } = {}) {
       },
     },
     cadetProfile: {
+      async findUnique({ where }) {
+        return (
+          state.profiles.find((profile) => profile.userId === where.userId) ?? null
+        );
+      },
+      async create({ data }) {
+        state.counter += 1;
+        const profile = {
+          id: `profile_${state.counter}`,
+          status: "PENDING",
+          ...data,
+        };
+        state.profiles.push(profile);
+        return profile;
+      },
+      async update({ where, data }) {
+        const profile = state.profiles.find(
+          (entry) => entry.userId === where.userId
+        );
+
+        if (!profile) {
+          throw new Error("profile not found");
+        }
+
+        Object.assign(profile, data);
+        return profile;
+      },
       async updateMany() {
         return { count: 0 };
       },
@@ -137,7 +168,8 @@ test("a roster matched college account is approved automatically", async () => {
   assert.equal(result.user.approvalStatus, "APPROVED");
   assert.equal(result.user.rosterId, "roster_1");
   assert.equal(result.user.approvedAt, FIXED_TIME);
-  assert.equal(result.source, "ROSTER");
+  assert.equal(result.source, "AUTOMATIC");
+  assert.equal(result.autoApproved, true);
 });
 
 test("a personal gmail account is refused and no row is created", async () => {
@@ -251,7 +283,8 @@ test("an existing pending account is approved when it is on the roster", async (
   assert.equal(result.ok, true);
   assert.equal(result.user.approvalStatus, "APPROVED");
   assert.equal(result.user.rosterId, "roster_2");
-  assert.equal(result.source, "ROSTER");
+  assert.equal(result.source, "AUTOMATIC");
+  assert.equal(result.autoApproved, true);
 });
 
 test("a rejected account is never approved by the roster", async () => {

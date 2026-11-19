@@ -1,6 +1,3 @@
-import Link from "next/link";
-import Image from "next/image";
-import { Calendar, Users, Award, Mountain, Heart, ArrowRight, Megaphone } from "lucide-react";
 import prisma from "@/lib/prisma";
 import HomeClient from "./HomeClient";
 

@@ -1,74 +1,37 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
 import { test } from "node:test";
 
-const REPO_ROOT = resolve(import.meta.dirname, "..");
-const BASE_URL = process.env.NCC_TEST_BASE_URL ?? "http://localhost:3001";
-
-function readEnvFile(path) {
-  const values = {};
-
-  if (!existsSync(path)) {
-    return values;
-  }
-
-  for (const line of readFileSync(path, "utf8").split("\n")) {
-    const match = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*)$/);
-
-    if (match) {
-      values[match[1]] = match[2].trim().replace(/^["']|["']$/g, "");
-    }
-  }
-
-  return values;
-}
-
-function loadContext() {
-  const env = {
-    ...readEnvFile(join(REPO_ROOT, ".env")),
-    ...readEnvFile(join(REPO_ROOT, ".env.local")),
-  };
-
-  const secret = env.AUTH_SECRET ?? env.NEXTAUTH_SECRET;
-
-  if (!env.DATABASE_URL?.includes("localhost") && !env.DATABASE_URL?.includes("127.0.0.1")) {
-    return { skip: "the configured DATABASE_URL is not a local development database" };
-  }
-
-  if (!secret) {
-    return { skip: "no session secret is configured locally" };
-  }
-
-  return { skip: null, env, secret };
-}
-
-async function serverIsReachable() {
-  try {
-    const response = await fetch(`${BASE_URL}/login`, { redirect: "manual" });
-    return response.ok || response.status === 307;
-  } catch {
-    return false;
-  }
-}
+import {
+  BASE_URL,
+  createPrismaClient,
+  loadSuiteContext,
+  requireDatabase,
+  requireSecret,
+  requireServer,
+  sessionCookie,
+} from "./helpers/db-suite.mjs";
 
 async function withFixtures(run) {
-  const context = loadContext();
+  const context = loadSuiteContext();
 
   if (context.skip) {
     return { skip: context.skip };
   }
 
-  if (!(await serverIsReachable())) {
-    return { skip: `the development server is not reachable at ${BASE_URL}` };
+  // The suite runs against the local development environment. A missing
+  // secret, a server that does not answer and a database that does not
+  // answer are failures and not skips.
+  requireSecret(context.secret);
+  await requireServer(BASE_URL);
+
+  const prisma = await createPrismaClient(context.env);
+
+  try {
+    await requireDatabase(prisma);
+  } catch (error) {
+    await prisma.$disconnect().catch(() => undefined);
+    throw error;
   }
-
-  const { PrismaClient } = await import("@prisma/client");
-  const { encode } = await import("next-auth/jwt");
-
-  const prisma = new PrismaClient({
-    datasources: { db: { url: context.env.DATABASE_URL } },
-  });
 
   const stamp = Date.now();
   const emails = {
@@ -121,21 +84,8 @@ async function withFixtures(run) {
       },
     });
 
-    const cookieFor = async (user) => {
-      const token = await encode({
-        token: {
-          id: user.id,
-          sub: user.id,
-          email: user.email,
-          name: `Fixture ${user.email}`,
-          role: user.role,
-        },
-        secret: context.secret,
-        salt: "authjs.session-token",
-      });
-
-      return `authjs.session-token=${token}`;
-    };
+    const cookieFor = async (user) =>
+      sessionCookie(context.secret, user);
 
     const request = (path, { method = "GET", body, cookie, headers = {} } = {}) =>
       fetch(`${BASE_URL}${path}`, {
@@ -162,8 +112,25 @@ async function withFixtures(run) {
 
     return { skip: null, result };
   } finally {
+    // The audit rows of the fixtures are removed before the accounts, because
+    // the actor of an event is a plain reference and it would otherwise stay
+    // behind as a dangling id.
+    const fixtureUsers = await prisma.user.findMany({
+      where: { email: { contains: "profile-" } },
+      select: { id: true },
+    });
+    const fixtureUserIds = fixtureUsers.map((user) => user.id);
+
+    await prisma.auditLog.deleteMany({
+      where: {
+        OR: [
+          { userId: { in: fixtureUserIds } },
+          { entityId: { in: fixtureUserIds } },
+        ],
+      },
+    });
     await prisma.cadetProfile.deleteMany({
-      where: { userId: { in: Object.values(fixtures).map((user) => user.id) } },
+      where: { userId: { in: fixtureUserIds } },
     });
     await prisma.user.deleteMany({
       where: { email: { contains: `profile-` } },
@@ -502,8 +469,12 @@ test("a photo upload rejects an unsupported file and an oversized file", async (
 
   const result = outcome.result;
   assert.equal(result.text, 400);
-  assert.equal(result.oversized, 400);
   assert.match(result.textPayload.error, /not a supported image|rejected/i);
+
+  // The body is rejected before it is read into the memory of the server.
+  // The status code is 413, because the request itself is too large.
+  assert.equal(result.oversized, 413);
+  assert.match(result.oversizedPayload.error, /smaller than 5 MB|too large/i);
 });
 
 test("a cadet uploads a photo and only their own photo changes", async (t) => {

@@ -1,6 +1,7 @@
-import { getSessionUser } from "@/lib/guard";
+import { getSessionUser, isApprovedAccount } from "@/lib/guard";
 import prisma from "@/lib/prisma";
-import { USER_PASSWORD_OMIT } from "@/lib/user-fields.mjs";
+import { USER_OMIT } from "@/lib/user-fields.mjs";
+import { eligibleCadetWhere } from "@/lib/attendance-eligibility.mjs";
 import OfficerDashboardClient from "./OfficerDashboardClient";
 import { redirect } from "next/navigation";
 
@@ -11,7 +12,7 @@ export default async function OfficerPage() {
     redirect("/login");
   }
 
-  if (user.approvalStatus !== "APPROVED") {
+  if (!isApprovedAccount(user)) {
     redirect("/pending");
   }
 
@@ -21,7 +22,7 @@ export default async function OfficerPage() {
 
   const dbUser = await prisma.user.findUnique({
     where: { id: user.id },
-    omit: USER_PASSWORD_OMIT,
+    omit: USER_OMIT,
     include: { cadetProfile: true },
   });
 
@@ -43,11 +44,11 @@ export default async function OfficerPage() {
   });
 
   const approvedCadets = await prisma.user.findMany({
-    where: {
-      role: "CADET",
-      approvalStatus: "APPROVED",
-    },
-    omit: USER_PASSWORD_OMIT,
+    // The list of the cadets of the unit only holds the cadets that may take
+    // part in the attendance. A cadet whose roster row is inactive is not
+    // part of the unit any more, but its history stays in the database.
+    where: eligibleCadetWhere(),
+    omit: USER_OMIT,
     include: { cadetProfile: true },
     orderBy: { name: "asc" },
   });

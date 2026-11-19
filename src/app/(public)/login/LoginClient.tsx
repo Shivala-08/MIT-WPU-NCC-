@@ -4,7 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
-import { Shield, AlertCircle, ArrowRight } from "lucide-react";
+import { AlertCircle, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function LoginClient({ errorMessage }: { errorMessage?: string }) {

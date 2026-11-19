@@ -4,31 +4,22 @@ import { join, relative, resolve } from "node:path";
 import { test } from "node:test";
 
 import {
-  USER_PASSWORD_OMIT,
+  USER_OMIT,
   stripPassword,
   stripPasswordFromRecords,
 } from "../src/lib/user-fields.mjs";
-import { classifyDatabaseTarget } from "../src/lib/prisma-target.mjs";
+import {
+  BASE_URL,
+  createPrismaClient,
+  loadSuiteContext,
+  requireDatabase,
+  requireSecret,
+  requireServer,
+  sessionCookie,
+} from "./helpers/db-suite.mjs";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
-const BASE_URL = process.env.NCC_TEST_BASE_URL ?? "http://localhost:3001";
 const BCRYPT_PATTERN = /\$2[aby]\$\d\d\$/;
-
-function readEnvFile(path) {
-  const values = {};
-  let content;
-  try {
-    content = readFileSync(path, "utf8");
-  } catch {
-    return values;
-  }
-  for (const line of content.split("\n")) {
-    const match = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*)$/);
-    if (!match) continue;
-    values[match[1]] = match[2].trim().replace(/^["']|["']$/g, "");
-  }
-  return values;
-}
 
 function listSourceFiles(dir) {
   const files = [];
@@ -37,17 +28,42 @@ function listSourceFiles(dir) {
     const stats = statSync(full);
     if (stats.isDirectory()) {
       files.push(...listSourceFiles(full));
-    } else if (/\.(ts|tsx)$/.test(entry)) {
+    } else if (/\.(ts|tsx|mjs)$/.test(entry) && !entry.endsWith(".d.mts")) {
       files.push(full);
     }
   }
   return files;
 }
 
+/**
+ * The methods of the `User` model that read or write a row.
+ *
+ * Every one of them has to name the fields it wants. A method that loads the
+ * whole record asks the database for every column, including the column of
+ * the origin of the approval decision. That column is added by the migration
+ * `20261105000000_approval_decision_source`, and the application has to run
+ * before and after that migration is applied.
+ */
+const USER_ROW_METHODS = [
+  "findMany",
+  "findUnique",
+  "findFirst",
+  "findFirstOrThrow",
+  "findUniqueOrThrow",
+  "create",
+  "update",
+  "delete",
+  "upsert",
+].join("|");
+
 function findUserQueryCallSites(source) {
   const sites = [];
-  const pattern =
-    /prisma\.user\.(findMany|findUnique|findFirst|findFirstOrThrow|findUniqueOrThrow|create|update)\s*\(/g;
+  // The receiver is the client itself or a transaction. The transaction
+  // client is written as `tx.user` or `db.user`.
+  const pattern = new RegExp(
+    `\\b(?:prisma|tx|db|client)\\.user\\.(${USER_ROW_METHODS})\\s*\\(`,
+    "g"
+  );
   let match;
   while ((match = pattern.exec(source))) {
     let depth = 0;
@@ -68,9 +84,12 @@ function findUserQueryCallSites(source) {
   return sites;
 }
 
-test("the shared omit constant excludes the password field", () => {
-  assert.deepEqual({ ...USER_PASSWORD_OMIT }, { password: true });
-  assert.ok(!("password" in USER_PASSWORD_OMIT) || USER_PASSWORD_OMIT.password === true);
+test("the shared omit constant excludes the password field and the decision source", () => {
+  assert.deepEqual(
+    { ...USER_OMIT },
+    { password: true, approvalDecisionSource: true }
+  );
+  assert.ok(!("password" in USER_OMIT) || USER_OMIT.password === true);
 });
 
 test("stripPassword removes only the password field", () => {
@@ -100,16 +119,20 @@ test("stripPasswordFromRecords handles lists and single records", () => {
 });
 
 test("every User query in the application excludes or selects fields explicitly", () => {
-  const appDir = join(REPO_ROOT, "src", "app");
+  const roots = [join(REPO_ROOT, "src", "app"), join(REPO_ROOT, "src", "lib")];
   const offenders = [];
 
-  for (const file of listSourceFiles(appDir)) {
-    const source = readFileSync(file, "utf8");
-    for (const site of findUserQueryCallSites(source)) {
-      const hasOmit = /\bomit\s*:/.test(site.args);
-      const hasSelect = /\bselect\s*:/.test(site.args);
-      if (!hasOmit && !hasSelect) {
-        offenders.push(`${relative(REPO_ROOT, file)} (prisma.user.${site.method})`);
+  for (const root of roots) {
+    for (const file of listSourceFiles(root)) {
+      const source = readFileSync(file, "utf8");
+      for (const site of findUserQueryCallSites(source)) {
+        // The shorthand form (`select,`) counts as well as the full form.
+        const namesFields = /\b(?:select|omit)\b/.test(site.args);
+        if (!namesFields) {
+          offenders.push(
+            `${relative(REPO_ROOT, file)} (user.${site.method})`
+          );
+        }
       }
     }
   }
@@ -117,33 +140,24 @@ test("every User query in the application excludes or selects fields explicitly"
   assert.deepEqual(
     offenders,
     [],
-    `User queries must use omit or select so the password column is never loaded: ${offenders.join(", ")}`
+    `Every User query must use omit or select: the password hash is never loaded and the column of the approval decision is only asked for when the database has it: ${offenders.join(", ")}`
   );
 });
 
 async function loadIntegrationContext() {
-  const env = { ...readEnvFile(join(REPO_ROOT, ".env")), ...readEnvFile(join(REPO_ROOT, ".env.local")) };
-  const target = classifyDatabaseTarget(env.DATABASE_URL, { env });
+  const context = loadSuiteContext();
 
-  if (target.kind !== "local") {
-    return { skip: "the configured DATABASE_URL is not a local development database" };
+  if (context.skip) {
+    return context;
   }
 
-  if (!env.NEXTAUTH_SECRET && !env.AUTH_SECRET) {
-    return { skip: "no session secret is configured locally" };
-  }
+  // The server and the database are prerequisites of the suite. When they
+  // do not answer the suite fails, because a skipped suite would report a
+  // green result while it proved nothing.
+  requireSecret(context.secret);
+  await requireServer(BASE_URL);
 
-  let response;
-  try {
-    response = await fetch(`${BASE_URL}/login`, { redirect: "manual" });
-  } catch {
-    return { skip: `the development server is not reachable at ${BASE_URL}` };
-  }
-  if (!response.ok) {
-    return { skip: `the development server at ${BASE_URL} did not answer` };
-  }
-
-  return { skip: null, env, target };
+  return context;
 }
 
 async function withAdminSession(run) {
@@ -152,12 +166,11 @@ async function withAdminSession(run) {
     return { skip: context.skip };
   }
 
-  const { PrismaClient } = await import("@prisma/client");
-  const { encode } = await import("next-auth/jwt");
+  const prisma = await createPrismaClient(context.env);
 
-  const prisma = new PrismaClient({ datasources: { db: { url: context.env.DATABASE_URL } } });
   let admin;
   try {
+    await requireDatabase(prisma);
     admin = await prisma.user.findFirst({
       where: { role: "ADMIN" },
       orderBy: { createdAt: "asc" },
@@ -168,23 +181,12 @@ async function withAdminSession(run) {
   }
 
   if (!admin) {
-    return { skip: "no admin account exists in the local development database" };
+    throw new Error(
+      "The local development database has no admin account. The suite needs one, so it fails instead of skipping."
+    );
   }
 
-  const secret = context.env.AUTH_SECRET ?? context.env.NEXTAUTH_SECRET;
-  const token = await encode({
-    token: {
-      id: admin.id,
-      sub: admin.id,
-      email: admin.email,
-      name: admin.name,
-      role: "ADMIN",
-    },
-    secret,
-    salt: "authjs.session-token",
-  });
-
-  const cookie = `authjs.session-token=${token}`;
+  const cookie = await sessionCookie(context.secret, admin, "ADMIN");
   const result = await run(cookie);
   return { skip: null, result };
 }
@@ -195,11 +197,11 @@ async function withProbeCadet(run) {
     return { skip: context.skip };
   }
 
-  const { PrismaClient } = await import("@prisma/client");
-  const prisma = new PrismaClient({ datasources: { db: { url: context.env.DATABASE_URL } } });
+  const prisma = await createPrismaClient(context.env);
   const probeEmail = `password-probe-${Date.now()}@mitwpu.edu.in`;
 
   try {
+    await requireDatabase(prisma);
     await prisma.user.create({
       data: {
         name: "Password Exposure Probe",
@@ -207,10 +209,16 @@ async function withProbeCadet(run) {
         password: "$2a$12$probehashprobehashprobehashprobehashprobehashprobehas",
         role: "CADET",
       },
+      // The fields of the record are named. The probe account is written
+      // against a database that does not have the column of the approval
+      // decision yet.
+      omit: USER_OMIT,
     });
   } catch (error) {
-    await prisma.$disconnect();
-    return { skip: `the probe account could not be created: ${String(error?.message).slice(0, 120)}` };
+    await prisma.$disconnect().catch(() => undefined);
+    throw new Error(
+      `The probe account could not be created: ${String(error?.message).slice(0, 160)}`
+    );
   }
 
   try {

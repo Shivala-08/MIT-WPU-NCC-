@@ -7,7 +7,6 @@ import {
   FileText,
   Download,
   Search,
-  Filter,
   Lock,
   BookOpen,
   FileCheck,

@@ -4,6 +4,8 @@ import {
   buildRosterProfileUpdate,
   computeProfileCompletion,
 } from "./profile-fields.mjs";
+import { writeAuditEvent } from "./audit-writer.mjs";
+import { runInTransaction } from "./db-transaction.mjs";
 
 /**
  * @typedef {{
@@ -291,28 +293,36 @@ export async function updateProfileAsAdmin(db, { userId, values, actorId }) {
     return { profile: existing, changed };
   }
 
-  const profile = await db.cadetProfile.update({
-    where: { userId },
-    data,
-    select: PROFILE_SELECT,
-  });
+  // The correction of an administrator and its audit event are written in one
+  // transaction. A correction is never applied without its audit event.
+  const profile = await runInTransaction(db, async (tx) => {
+    const updated = await tx.cadetProfile.update({
+      where: { userId },
+      data,
+      select: PROFILE_SELECT,
+    });
 
-  if (db.auditLog && typeof db.auditLog.create === "function") {
-    await db.auditLog.create({
-      data: {
-        userId: actorId ?? null,
-        action: "CADET_PROFILE_UPDATED",
-        entity: "CadetProfile",
-        entityId: profile.id,
-        oldData: Object.fromEntries(
+    await writeAuditEvent(tx, {
+      actorId: actorId ?? null,
+      action: "CADET_PROFILE_UPDATED",
+      entity: "CadetProfile",
+      entityId: updated.id,
+      oldData: {
+        changedFields: changed,
+        ...Object.fromEntries(
           changed.map((field) => [field, existing[field] ?? null])
         ),
-        newData: Object.fromEntries(
-          changed.map((field) => [field, profile[field] ?? null])
+      },
+      newData: {
+        changedFields: changed,
+        ...Object.fromEntries(
+          changed.map((field) => [field, updated[field] ?? null])
         ),
       },
     });
-  }
+
+    return updated;
+  });
 
   return { profile, changed };
 }
@@ -335,23 +345,28 @@ export async function syncProfileFromRoster(db, { user, rosterRow, actorId }) {
   const existing = await readProfile(db, user.id);
 
   if (!existing) {
-    const profile = await createProfileForUser(db, {
-      user,
-      rosterRow,
-    });
-
-    if (db.auditLog && typeof db.auditLog.create === "function") {
-      await db.auditLog.create({
+    // The creation of the profile and its audit event are written in one
+    // transaction.
+    const profile = await runInTransaction(db, async (tx) => {
+      const created = await tx.cadetProfile.create({
         data: {
-          userId: actorId ?? null,
-          action: "CADET_PROFILE_CREATED_FROM_ROSTER",
-          entity: "CadetProfile",
-          entityId: profile.id,
-          oldData: null,
-          newData: { source: "ROSTER" },
+          ...buildNewProfileData(user, rosterRow),
+          userId: user.id,
         },
+        select: PROFILE_SELECT,
       });
-    }
+
+      await writeAuditEvent(tx, {
+        actorId: actorId ?? null,
+        action: "CADET_PROFILE_CREATED_FROM_ROSTER",
+        entity: "CadetProfile",
+        entityId: created.id,
+        oldData: null,
+        newData: { source: "ROSTER" },
+      });
+
+      return created;
+    });
 
     return { created: true, changed: [], profile };
   }
@@ -362,28 +377,35 @@ export async function syncProfileFromRoster(db, { user, rosterRow, actorId }) {
     return { created: false, changed: [], profile: existing };
   }
 
-  const profile = await db.cadetProfile.update({
-    where: { userId: user.id },
-    data,
-    select: PROFILE_SELECT,
-  });
+  // The synchronisation and its audit event are written in one transaction.
+  const profile = await runInTransaction(db, async (tx) => {
+    const updated = await tx.cadetProfile.update({
+      where: { userId: user.id },
+      data,
+      select: PROFILE_SELECT,
+    });
 
-  if (db.auditLog && typeof db.auditLog.create === "function") {
-    await db.auditLog.create({
-      data: {
-        userId: actorId ?? null,
-        action: "CADET_PROFILE_SYNCED_FROM_ROSTER",
-        entity: "CadetProfile",
-        entityId: profile.id,
-        oldData: Object.fromEntries(
+    await writeAuditEvent(tx, {
+      actorId: actorId ?? null,
+      action: "CADET_PROFILE_SYNCED_FROM_ROSTER",
+      entity: "CadetProfile",
+      entityId: updated.id,
+      oldData: {
+        changedFields: changed,
+        ...Object.fromEntries(
           changed.map((field) => [field, existing[field] ?? null])
         ),
-        newData: Object.fromEntries(
-          changed.map((field) => [field, profile[field] ?? null])
+      },
+      newData: {
+        changedFields: changed,
+        ...Object.fromEntries(
+          changed.map((field) => [field, updated[field] ?? null])
         ),
       },
     });
-  }
+
+    return updated;
+  });
 
   return { created: false, changed, profile };
 }

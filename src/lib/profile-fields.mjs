@@ -314,21 +314,41 @@ export function buildRosterProfileUpdate(profile, rosterRow) {
 }
 
 /**
- * Builds the profile that is created for a user who has no profile yet.
+ * The profile that is created for a user who has no profile yet.
  *
+ * @typedef {{
+ *   fullName: string,
+ *   prn: string | null,
+ *   regiNumber: string | null,
+ *   wing: string | null,
+ *   division: string | null,
+ *   year: string | null,
+ *   branch: string | null,
+ *   photoUrl: null,
+ *   photoThumbnailUrl: null,
+ * }} NewProfileData
+ */
+
+/**
  * @param {{ name?: string | null }} user
  * @param {Record<string, unknown> | null | undefined} rosterRow
- * @returns {Record<string, unknown>}
+ * @returns {NewProfileData}
  */
 export function buildNewProfileData(user, rosterRow) {
   const roster = rosterRow ?? {};
 
-  /** @type {Record<string, unknown>} */
+  /** @type {NewProfileData} */
   const data = {
     fullName:
       (typeof roster.fullName === "string" && roster.fullName.trim()) ||
       (typeof user?.name === "string" && user.name.trim()) ||
       "Cadet",
+    prn: null,
+    regiNumber: null,
+    wing: null,
+    division: null,
+    year: null,
+    branch: null,
     photoUrl: null,
     photoThumbnailUrl: null,
   };
@@ -340,8 +360,24 @@ export function buildNewProfileData(user, rosterRow) {
 
     const value = roster[field];
 
-    if (!isEmptyValue(value)) {
-      data[field] = typeof value === "string" ? value.trim() : value;
+    if (isEmptyValue(value)) {
+      continue;
+    }
+
+    const text = typeof value === "string" ? value.trim() : String(value);
+
+    if (field === "prn") {
+      data.prn = text;
+    } else if (field === "regiNumber") {
+      data.regiNumber = text;
+    } else if (field === "wing") {
+      data.wing = text;
+    } else if (field === "division") {
+      data.division = text;
+    } else if (field === "year") {
+      data.year = text;
+    } else if (field === "branch") {
+      data.branch = text;
     }
   }
 

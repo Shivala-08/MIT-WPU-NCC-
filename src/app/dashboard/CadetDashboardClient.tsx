@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import {
@@ -9,7 +8,6 @@ import {
   Calendar,
   CheckCircle2,
   XCircle,
-  Clock,
   BookOpen,
   Award,
   AlertTriangle,
@@ -56,25 +54,35 @@ interface CadetDashboardProps {
     content: string;
     createdAt: string | Date;
   }[];
+  summary: {
+    eligibleSessions: number;
+    denominator: number;
+    attended: number;
+    present: number;
+    late: number;
+    absent: number;
+    excused: number;
+    unmarked: number;
+    percentage: number;
+    thresholdConfirmed: boolean;
+    thresholdPercent: number;
+  };
 }
 
 export default function CadetDashboardClient({
   user,
   announcements,
+  summary,
 }: CadetDashboardProps) {
   const profile = user.cadetProfile;
   const attendances = user.attendances || [];
 
-  const totalSessions = attendances.length;
-  const presentCount = attendances.filter(
-    (a) => a.status === "PRESENT" || a.status === "ON_DUTY"
-  ).length;
-  const absentCount = attendances.filter((a) => a.status === "ABSENT").length;
-  const leaveCount = attendances.filter((a) => a.status === "LEAVE").length;
+  const totalSessions = summary.eligibleSessions;
+  const presentCount = summary.present + summary.late;
+  const absentCount = summary.absent;
+  const leaveCount = summary.excused;
 
-  const attendanceRate =
-    totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 100;
-  const isBelowCriteria = totalSessions > 0 && attendanceRate < 75;
+  const attendanceRate = summary.percentage;
 
   return (
     <div className="min-h-screen bg-gray-50 py-6 sm:py-10">
@@ -127,6 +135,18 @@ export default function CadetDashboardClient({
               >
                 <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Study Notes
               </Link>
+              <Link
+                href="/attendance"
+                className="flex-1 sm:flex-initial px-3 sm:px-4 py-2 sm:py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs sm:text-sm font-medium rounded-xl transition-all flex items-center justify-center gap-2 touch-target"
+              >
+                <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> My Attendance
+              </Link>
+              <Link
+                href="/leave"
+                className="flex-1 sm:flex-initial px-3 sm:px-4 py-2 sm:py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs sm:text-sm font-medium rounded-xl transition-all flex items-center justify-center gap-2 touch-target"
+              >
+                <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Leave
+              </Link>
               <button
                 onClick={() => signOut({ callbackUrl: "/" })}
                 className="px-3 sm:px-4 py-2 sm:py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs sm:text-sm font-medium rounded-xl transition-all flex items-center gap-1.5 touch-target"
@@ -146,21 +166,21 @@ export default function CadetDashboardClient({
               </p>
               <h3
                 className={`text-xl sm:text-2xl md:text-3xl font-heading font-black mt-1 sm:mt-2 ${
-                  isBelowCriteria ? "text-amber-600" : "text-ncc-dark-blue"
+                  summary.thresholdConfirmed && attendanceRate < summary.thresholdPercent
+                    ? "text-amber-600"
+                    : "text-ncc-dark-blue"
                 }`}
               >
                 {attendanceRate}%
               </h3>
               <p className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1">
-                {isBelowCriteria ? "Needs ≥ 75% for exam" : "Eligible for 'B' & 'C' exam"}
+                {summary.thresholdConfirmed
+                  ? `Informational rate, threshold ${summary.thresholdPercent}%`
+                  : "Informational rate, no confirmed threshold"}
               </p>
             </div>
             <div
-              className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center ${
-                isBelowCriteria
-                  ? "bg-amber-100 text-amber-700"
-                  : "bg-ncc-light-blue/20 text-ncc-dark-blue"
-              }`}
+              className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-ncc-light-blue/20 text-ncc-dark-blue flex items-center justify-center"
             >
               <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
@@ -169,13 +189,13 @@ export default function CadetDashboardClient({
           <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-200 shadow-sm flex items-center justify-between">
             <div>
               <p className="text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-wider">
-                Total Parades Logged
+                Eligible Sessions
               </p>
               <h3 className="text-xl sm:text-2xl md:text-3xl font-heading font-black text-gray-900 mt-1 sm:mt-2">
                 {totalSessions}
               </h3>
               <p className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 sm:mt-1">
-                Scheduled training sessions
+                {summary.denominator} count towards the percentage
               </p>
             </div>
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
@@ -218,14 +238,18 @@ export default function CadetDashboardClient({
           </div>
         </div>
 
-        {/* 75% Warning Alert if applicable */}
-        {isBelowCriteria && (
+        {/* The threshold is not an official rule until the institution confirms it. */}
+        {!summary.thresholdConfirmed && (
           <div className="p-3 sm:p-4 lg:p-5 rounded-2xl bg-amber-50 border border-amber-300 flex items-start gap-3 text-amber-900">
             <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600 shrink-0 mt-0.5" />
             <div>
-              <h4 className="font-bold text-xs sm:text-sm">Attendance Below 75% Threshold</h4>
+              <h4 className="font-bold text-xs sm:text-sm">
+                The attendance percentage is informational
+              </h4>
               <p className="text-xs mt-0.5 sm:mt-1 text-amber-800">
-                NCC Directorate rules require a minimum of 75% overall parade attendance to be eligible for Certificate &apos;B&apos; and &apos;C&apos; examination endorsement. Please report to your Senior Under Officer.
+                The unit has not confirmed an official attendance threshold yet,
+                so this percentage is not an eligibility decision. Ask your
+                Senior Under Officer about the current rule.
               </p>
             </div>
           </div>
@@ -357,6 +381,24 @@ export default function CadetDashboardClient({
                 Exam syllabi, weapon training manuals, and unit contacts.
               </p>
               <div className="space-y-1.5 sm:space-y-2">
+                <Link
+                  href="/attendance"
+                  className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold transition-all touch-target"
+                >
+                  <span className="flex items-center gap-2">
+                    <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-ncc-gold" /> My Attendance Record
+                  </span>
+                  <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white/60" />
+                </Link>
+                <Link
+                  href="/leave"
+                  className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold transition-all touch-target"
+                >
+                  <span className="flex items-center gap-2">
+                    <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-ncc-light-blue" /> Leave Requests
+                  </span>
+                  <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white/60" />
+                </Link>
                 <Link
                   href="/study-materials"
                   className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold transition-all touch-target"

@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Building2,
-  Shield,
 } from "lucide-react";
 import { AnimatedSection } from "@/components/AnimatedSection";
 

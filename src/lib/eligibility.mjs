@@ -1,11 +1,25 @@
 /**
  * @typedef {"PENDING" | "APPROVED" | "REJECTED"} ApprovalStatus
+ * @typedef {"NONE" | "AUTOMATIC" | "ADMINISTRATOR"} ApprovalDecisionSource
  */
 
 export const APPROVAL_STATUSES = Object.freeze([
   "PENDING",
   "APPROVED",
   "REJECTED",
+]);
+
+/**
+ * The origin of an approval decision.
+ *
+ * The decision of an administrator is authoritative. An account that an
+ * administrator put back into PENDING is never approved automatically by a
+ * later sign in.
+ */
+export const APPROVAL_DECISION_SOURCES = Object.freeze([
+  "NONE",
+  "AUTOMATIC",
+  "ADMINISTRATOR",
 ]);
 
 export const DEFAULT_ALLOWED_EMAIL_DOMAIN = "mitwpu.edu.in";
@@ -21,14 +35,44 @@ export function normalizeEmail(value) {
 }
 
 /**
+ * Normalises an approval state to its canonical spelling.
+ *
+ * The value that a filter or a query uses has to be the canonical one. A raw
+ * lowercase value would never match the enum of the database.
+ *
+ * @param {unknown} value
+ * @returns {ApprovalStatus | null}
+ */
+export function normalizeApprovalStatus(value) {
+  const normalized = String(value ?? "").trim().toUpperCase();
+
+  return APPROVAL_STATUSES.includes(/** @type {ApprovalStatus} */ (normalized))
+    ? /** @type {ApprovalStatus} */ (normalized)
+    : null;
+}
+
+/**
  * @param {unknown} value
  * @returns {value is ApprovalStatus}
  */
 export function isApprovalStatus(value) {
-  return (
-    typeof value === "string" &&
-    APPROVAL_STATUSES.includes(/** @type {ApprovalStatus} */ (value.toUpperCase()))
-  );
+  return normalizeApprovalStatus(value) !== null;
+}
+
+/**
+ * Normalises the origin of an approval decision.
+ *
+ * @param {unknown} value
+ * @returns {ApprovalDecisionSource | null}
+ */
+export function normalizeApprovalDecisionSource(value) {
+  const normalized = String(value ?? "").trim().toUpperCase();
+
+  return APPROVAL_DECISION_SOURCES.includes(
+    /** @type {ApprovalDecisionSource} */ (normalized)
+  )
+    ? /** @type {ApprovalDecisionSource} */ (normalized)
+    : null;
 }
 
 /**
@@ -146,24 +190,136 @@ export function reconcileApprovalStatus({
 }
 
 /**
+ * A roster row is operationally active unless it was explicitly deactivated.
+ *
+ * An account without a roster row is not blocked by the roster: it was
+ * decided by an administrator.
+ *
+ * @param {{ active?: boolean | null } | null | undefined} rosterEntry
+ * @returns {boolean}
+ */
+export function isRosterEntryActive(rosterEntry) {
+  if (!rosterEntry) {
+    return true;
+  }
+
+  return rosterEntry.active !== false;
+}
+
+/**
+ * Reports whether a roster row matches an account for the automatic approval.
+ *
+ * An account without a roster row is never matched and an inactive roster
+ * row never matches either.
+ *
+ * @param {{ active?: boolean | null } | null | undefined} rosterEntry
+ * @returns {boolean}
+ */
+export function isRosterMatch(rosterEntry) {
+  if (!rosterEntry) {
+    return false;
+  }
+
+  return rosterEntry.active !== false;
+}
+
+/**
+ * The effective origin of the approval decision of an account.
+ *
+ * The column `User.approvalDecisionSource` is the authoritative source. The
+ * administrator id is only a second signal, so a decision that was recorded
+ * before the column existed is still recognised as an administrator decision.
+ *
+ * @param {{
+ *   approvalDecisionSource?: unknown,
+ *   approvedById?: string | null,
+ * }} account
+ * @returns {ApprovalDecisionSource}
+ */
+export function effectiveDecisionSource(account) {
+  const declared = normalizeApprovalDecisionSource(
+    account?.approvalDecisionSource
+  );
+
+  if (declared === "ADMINISTRATOR") {
+    return "ADMINISTRATOR";
+  }
+
+  // An account that carries an administrator id was decided by an
+  // administrator. The signal is never ignored, because the decision of an
+  // administrator has to survive every automatic path.
+  if (account?.approvedById) {
+    return "ADMINISTRATOR";
+  }
+
+  return declared ?? "NONE";
+}
+
+/**
+ * Decides the approval state of an account from the roster.
+ *
+ * The decision of an administrator is authoritative: an account that an
+ * administrator decided is never changed by the automatic path, whatever the
+ * roster says.
+ *
  * @param {{
  *   approvalStatus?: string | null,
- *   rosterEntry?: { active?: boolean } | null,
+ *   decisionSource?: string | null,
+ *   rosterEntry?: { active?: boolean | null } | null,
  * }} input
- * @returns {{ approvalStatus: ApprovalStatus, source: "EXISTING" | "ROSTER" | "DEFAULT" }}
+ * @returns {{
+ *   approvalStatus: ApprovalStatus,
+ *   decisionSource: ApprovalDecisionSource,
+ *   autoApproved: boolean,
+ * }}
  */
-export function decideRosterApproval({ approvalStatus, rosterEntry }) {
-  if (approvalStatus === "REJECTED") {
-    return { approvalStatus: "REJECTED", source: "EXISTING" };
+export function decideRosterApproval({
+  approvalStatus,
+  decisionSource,
+  rosterEntry,
+}) {
+  const currentStatus = normalizeApprovalStatus(approvalStatus);
+  const currentSource = effectiveDecisionSource({
+    approvalDecisionSource: decisionSource,
+    approvedById: null,
+  });
+
+  if (currentStatus === "REJECTED") {
+    return {
+      approvalStatus: "REJECTED",
+      decisionSource: currentSource,
+      autoApproved: false,
+    };
   }
 
-  if (approvalStatus === "APPROVED") {
-    return { approvalStatus: "APPROVED", source: "EXISTING" };
+  if (currentStatus === "APPROVED") {
+    return {
+      approvalStatus: "APPROVED",
+      decisionSource: currentSource,
+      autoApproved: false,
+    };
   }
 
-  if (rosterEntry && rosterEntry.active !== false) {
-    return { approvalStatus: "APPROVED", source: "ROSTER" };
+  // The administrator decided. The automatic path does not touch the account.
+  if (currentSource === "ADMINISTRATOR") {
+    return {
+      approvalStatus: "PENDING",
+      decisionSource: "ADMINISTRATOR",
+      autoApproved: false,
+    };
   }
 
-  return { approvalStatus: "PENDING", source: "DEFAULT" };
+  if (isRosterMatch(rosterEntry)) {
+    return {
+      approvalStatus: "APPROVED",
+      decisionSource: "AUTOMATIC",
+      autoApproved: true,
+    };
+  }
+
+  return {
+    approvalStatus: "PENDING",
+    decisionSource: currentSource,
+    autoApproved: false,
+  };
 }

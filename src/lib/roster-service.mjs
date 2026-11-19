@@ -1,5 +1,7 @@
 import { normalizeEmail } from "./eligibility.mjs";
 import { syncProfileFromRoster } from "./profile-service.mjs";
+import { writeAuditEvent } from "./audit-writer.mjs";
+import { runInTransaction } from "./db-transaction.mjs";
 
 /**
  * Imports roster rows and keeps the cadet profiles in sync.
@@ -8,6 +10,11 @@ import { syncProfileFromRoster } from "./profile-service.mjs";
  * changes the approval state of an account: a rejected account stays
  * rejected and a pending account stays pending until it signs in or until an
  * administrator uses the explicit approval flow.
+ *
+ * The import, the synchronisation of the profiles and the audit events are
+ * written in one transaction. A roster that is not in the audit trail was
+ * never imported, and an import that fails half way leaves no roster row
+ * behind.
  */
 
 /**
@@ -96,103 +103,113 @@ async function upsertRosterRow(db, row) {
  * }>}
  */
 export async function importRosterRows(db, { rows, actorId = null }) {
-  const matched = [];
-  const unmatched = [];
-  const attention = [];
+  // The whole import runs in one transaction. The roster rows, the link to
+  // the accounts, the synchronisation of the profiles and the audit events
+  // either all happen or none of them happens.
+  return runInTransaction(db, async (tx) => {
+    const matched = [];
+    const unmatched = [];
+    const attention = [];
 
-  let created = 0;
-  let updated = 0;
+    let created = 0;
+    let updated = 0;
 
-  for (const row of rows) {
-    const email = normalizeEmail(row.email);
+    for (const row of rows) {
+      const email = normalizeEmail(row.email);
 
-    if (!email) {
-      unmatched.push({
+      if (!email) {
+        unmatched.push({
+          email,
+          fullName: row.fullName,
+          reason: "The row has no usable email address",
+        });
+        continue;
+      }
+
+      const { roster, created: rowCreated } = await upsertRosterRow(tx, {
+        ...row,
         email,
-        fullName: row.fullName,
-        reason: "The row has no usable email address",
       });
-      continue;
-    }
 
-    const { roster, created: rowCreated } = await upsertRosterRow(db, {
-      ...row,
-      email,
-    });
+      if (rowCreated) {
+        created += 1;
+      } else {
+        updated += 1;
+      }
 
-    if (rowCreated) {
-      created += 1;
-    } else {
-      updated += 1;
-    }
+      if (!roster.active) {
+        attention.push({
+          email,
+          message:
+            "The roster row is inactive. It stays inactive until an administrator reactivates it.",
+        });
+      }
 
-    if (!roster.active) {
-      attention.push({
+      const user = await findUserByEmail(tx, { email });
+
+      if (!user) {
+        unmatched.push({
+          email,
+          fullName: row.fullName,
+          reason:
+            "No account uses this email address yet. The cadet is approved automatically at the first sign in.",
+        });
+        continue;
+      }
+
+      if (user.rosterId !== roster.id) {
+        // The fields of the account are named explicitly. The column of the
+        // origin of the approval decision is added by a migration that is not
+        // applied to every database yet, and a query that loads the whole
+        // record would ask for it.
+        await tx.user.update({
+          where: { id: user.id },
+          data: { rosterId: roster.id },
+          select: { id: true, rosterId: true },
+        });
+      }
+
+      const sync = await syncProfileFromRoster(tx, {
+        user,
+        rosterRow: roster,
+        actorId,
+      });
+
+      matched.push({
         email,
-        message:
-          "The roster row is inactive. It stays inactive until an administrator reactivates it.",
+        userId: user.id,
+        profileCreated: sync.created,
+        changedFields: sync.changed,
       });
     }
 
-    const user = await findUserByEmail(db, { email });
-
-    if (!user) {
-      unmatched.push({
-        email,
-        fullName: row.fullName,
-        reason:
-          "No account uses this email address yet. The cadet is approved automatically at the first sign in.",
-      });
-      continue;
-    }
-
-    if (user.rosterId !== roster.id) {
-      await db.user.update({
-        where: { id: user.id },
-        data: { rosterId: roster.id },
-      });
-    }
-
-    const sync = await syncProfileFromRoster(db, {
-      user,
-      rosterRow: roster,
-      actorId,
-    });
-
-    matched.push({
-      email,
-      userId: user.id,
-      profileCreated: sync.created,
-      changedFields: sync.changed,
-    });
-  }
-
-  if (db.auditLog && typeof db.auditLog.create === "function") {
-    await db.auditLog.create({
-      data: {
-        userId: actorId,
-        action: "ROSTER_IMPORTED",
-        entity: "Roster",
-        entityId: null,
-        newData: {
-          imported: rows.length,
-          created,
-          updated,
-          matched: matched.length,
-          unmatched: unmatched.length,
-        },
+    // The summary of the import is a mandatory audit event. The event is
+    // written with the same transaction as the import, so a roster that is
+    // not in the trail was never applied.
+    await writeAuditEvent(tx, {
+      actorId: actorId ?? null,
+      action: "ROSTER_IMPORTED",
+      entity: "Roster",
+      entityId: null,
+      oldData: null,
+      newData: {
+        imported: rows.length,
+        created,
+        updated,
+        matched: matched.length,
+        unmatched: unmatched.length,
       },
     });
-  }
 
-  return {
-    imported: rows.length,
-    created,
-    updated,
-    matched,
-    unmatched,
-    attention,
-  };
+    return {
+      imported: rows.length,
+      created,
+      updated,
+      matched,
+      unmatched,
+      attention,
+    };
+  });
 }
 
 /**
@@ -201,39 +218,40 @@ export async function importRosterRows(db, { rows, actorId = null }) {
  * Deactivating a row never deletes an account, never changes a role and
  * never changes the approval state.
  *
+ * The change of the row and its audit event are written in one transaction.
+ * A row whose state is not in the audit trail was never changed.
+ *
  * @param {any} db
  * @param {{ rosterId: string, active: boolean, actorId?: string | null }} input
  * @returns {Promise<{ roster: any, active: boolean }>}
  */
 export async function setRosterActive(db, { rosterId, active, actorId = null }) {
-  const existing = await db.roster.findUnique({
-    where: { id: rosterId },
-    select: { id: true, email: true, active: true },
-  });
-
-  if (!existing) {
-    const error = new Error("Roster row not found");
-    error.statusCode = 404;
-    throw error;
-  }
-
-  const roster = await db.roster.update({
-    where: { id: rosterId },
-    data: { active },
-  });
-
-  if (db.auditLog && typeof db.auditLog.create === "function") {
-    await db.auditLog.create({
-      data: {
-        userId: actorId,
-        action: active ? "ROSTER_ACTIVATED" : "ROSTER_DEACTIVATED",
-        entity: "Roster",
-        entityId: roster.id,
-        oldData: { active: existing.active },
-        newData: { active },
-      },
+  return runInTransaction(db, async (tx) => {
+    const existing = await tx.roster.findUnique({
+      where: { id: rosterId },
+      select: { id: true, email: true, active: true },
     });
-  }
 
-  return { roster, active };
+    if (!existing) {
+      const error = new Error("Roster row not found");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const roster = await tx.roster.update({
+      where: { id: rosterId },
+      data: { active },
+    });
+
+    await writeAuditEvent(tx, {
+      actorId: actorId ?? null,
+      action: active ? "ROSTER_ACTIVATED" : "ROSTER_DEACTIVATED",
+      entity: "Roster",
+      entityId: roster.id,
+      oldData: { active: existing.active },
+      newData: { active },
+    });
+
+    return { roster, active };
+  });
 }

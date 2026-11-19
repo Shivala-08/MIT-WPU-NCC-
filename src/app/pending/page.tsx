@@ -23,7 +23,12 @@ export default async function PendingPage() {
     redirect("/login");
   }
 
-  if (user.approvalStatus === "APPROVED") {
+  // A deactivated account is shown the deactivated state. It must not be
+  // redirected to the portal, because the protected layouts send it back
+  // here and the two redirects would loop.
+  const isDeactivated = Boolean(user.deactivatedAt);
+
+  if (!isDeactivated && user.approvalStatus === "APPROVED") {
     if (user.role === "ADMIN") {
       redirect("/admin");
     }
@@ -53,7 +58,9 @@ export default async function PendingPage() {
               Unity and Discipline
             </p>
             <h1 className="text-xl sm:text-2xl md:text-3xl font-heading font-black text-ncc-dark-blue tracking-tight">
-              {isRejected
+              {isDeactivated
+                ? "Your account is deactivated"
+                : isRejected
                 ? "Your application was not approved"
                 : "Your application is under review"}
             </h1>
@@ -61,22 +68,33 @@ export default async function PendingPage() {
 
           <div
             className={`p-4 sm:p-5 rounded-2xl border mb-6 sm:mb-8 flex items-start gap-3 ${
-              isRejected
+              isDeactivated
+                ? "bg-slate-100 border-slate-300 text-slate-700"
+                : isRejected
                 ? "bg-red-50 border-red-200 text-red-700"
                 : "bg-amber-50 border-amber-200 text-amber-800"
             }`}
           >
-            {isRejected ? (
+            {isDeactivated ? (
+              <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />
+            ) : isRejected ? (
               <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />
             ) : (
               <Clock className="w-5 h-5 shrink-0 mt-0.5" />
             )}
             <div className="text-xs sm:text-sm leading-relaxed">
               <p className="font-bold mb-1">
-                Status: {isRejected ? "Rejected" : "Pending approval"}
+                Status:{" "}
+                {isDeactivated
+                  ? "Deactivated"
+                  : isRejected
+                  ? "Rejected"
+                  : "Pending approval"}
               </p>
               <p>
-                {isRejected
+                {isDeactivated
+                  ? "Your account was deactivated by an administrator of the unit. The portal features stay locked. Your attendance history, your leave requests and your profile are kept, so the record of the unit stays complete. Write to the unit if you think this is a mistake."
+                  : isRejected
                   ? "Your cadet enrolment application was rejected. The portal features stay locked until the ANO reverses this decision."
                   : "Your cadet enrolment application is with the NCC unit administrators. The portal features stay locked until an administrator approves it."}
               </p>
@@ -88,7 +106,7 @@ export default async function PendingPage() {
               What happens next
             </h2>
             <ol className="space-y-3 text-xs sm:text-sm text-gray-600">
-              {!isRejected && (
+              {!isRejected && !isDeactivated && (
                 <>
                   <li className="flex items-start gap-2.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />

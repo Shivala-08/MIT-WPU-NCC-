@@ -31,6 +31,31 @@ jobs:
       - name: TypeScript check
         run: npx tsc --noEmit
 
+      # The logic suites below need no database and no development server.
+      # They are listed explicitly and must not be swapped for `npm test`:
+      # `npm test` also pulls in the integration suites, which need a live
+      # server on localhost:3001 and a writable database. Those suites would
+      # fail here, or worse, skip and report a green result while proving
+      # nothing.
+      #
+      # Every suite in this list passes with no database and without a `.env`
+      # file. A suite that needs a database is deliberately absent.
+      - name: Logic tests
+        run: |
+          node --test --test-concurrency=1 \
+            scripts/prisma-guard.test.mjs \
+            scripts/prisma-target.test.mjs \
+            scripts/eligibility.test.mjs \
+            scripts/module-syntax.test.mjs \
+            scripts/attendance-rules.test.mjs \
+            scripts/profile-fields.test.mjs \
+            scripts/attendance-service.test.mjs \
+            scripts/account-service.test.mjs \
+            scripts/account-deactivation.test.mjs \
+            scripts/audit-hash-key.test.mjs \
+            scripts/profile-photo.test.mjs \
+            scripts/profile-service.test.mjs
+
       - name: Build
         run: npm run build
 

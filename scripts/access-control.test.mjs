@@ -1,73 +1,42 @@
 import assert from "node:assert/strict";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 
-import { classifyDatabaseTarget } from "../src/lib/prisma-target.mjs";
+import {
+  BASE_URL,
+  createPrismaClient,
+  loadSuiteContext,
+  requireDatabase,
+  requireSecret,
+  requireServer,
+  sessionCookie,
+} from "./helpers/db-suite.mjs";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
-const BASE_URL = process.env.NCC_TEST_BASE_URL ?? "http://localhost:3001";
-
-function readEnvFile(path) {
-  const values = {};
-  if (!existsSync(path)) {
-    return values;
-  }
-  for (const line of readFileSync(path, "utf8").split("\n")) {
-    const match = line.match(/^\s*([A-Za-z0-9_]+)\s*=\s*(.*)$/);
-    if (match) {
-      values[match[1]] = match[2].trim().replace(/^["']|["']$/g, "");
-    }
-  }
-  return values;
-}
-
-function loadContext() {
-  const env = {
-    ...readEnvFile(join(REPO_ROOT, ".env")),
-    ...readEnvFile(join(REPO_ROOT, ".env.local")),
-  };
-
-  const target = classifyDatabaseTarget(env.DATABASE_URL, { env });
-  const secret = env.AUTH_SECRET ?? env.NEXTAUTH_SECRET;
-
-  if (target.kind !== "local") {
-    return { skip: "the configured DATABASE_URL is not a local development database" };
-  }
-
-  if (!secret) {
-    return { skip: "no session secret is configured locally" };
-  }
-
-  return { skip: null, env, secret };
-}
-
-async function serverIsReachable() {
-  try {
-    const response = await fetch(`${BASE_URL}/login`, { redirect: "manual" });
-    return response.ok || response.status === 307;
-  } catch {
-    return false;
-  }
-}
 
 async function withFixtures(run) {
-  const context = loadContext();
+  const context = loadSuiteContext();
 
   if (context.skip) {
     return { skip: context.skip };
   }
 
-  if (!(await serverIsReachable())) {
-    return { skip: `the development server is not reachable at ${BASE_URL}` };
+  // The suite runs against the local development environment. A missing
+  // secret, a server that does not answer and a database that does not
+  // answer are failures: a suite that skips in a broken environment reports
+  // a green result while it proved nothing.
+  requireSecret(context.secret);
+  await requireServer(BASE_URL);
+
+  const prisma = await createPrismaClient(context.env);
+
+  try {
+    await requireDatabase(prisma);
+  } catch (error) {
+    await prisma.$disconnect().catch(() => undefined);
+    throw error;
   }
-
-  const { PrismaClient } = await import("@prisma/client");
-  const { encode } = await import("next-auth/jwt");
-
-  const prisma = new PrismaClient({
-    datasources: { db: { url: context.env.DATABASE_URL } },
-  });
 
   const stamp = Date.now();
   const emails = {
@@ -106,20 +75,8 @@ async function withFixtures(run) {
     fixtures.staleRole = await create(emails.staleRole, "CADET", "APPROVED");
     fixtures.changedRole = await create(emails.changedRole, "ADMIN", "APPROVED");
 
-    const cookieFor = async (user, roleOverride) => {
-      const token = await encode({
-        token: {
-          id: user.id,
-          sub: user.id,
-          email: user.email,
-          name: `Fixture ${user.email}`,
-          role: roleOverride ?? user.role,
-        },
-        secret: context.secret,
-        salt: "authjs.session-token",
-      });
-      return `authjs.session-token=${token}`;
-    };
+    const cookieFor = async (user, roleOverride) =>
+      sessionCookie(context.secret, user, roleOverride);
 
     const result = await run({
       prisma,
@@ -155,7 +112,16 @@ async function withFixtures(run) {
 
     return { skip: null, result };
   } finally {
-    await prisma.attendanceSession.deleteMany({
+    // The cleanup is ordered so that the foreign keys of the schema are
+    // respected. Every row that points at a fixture account goes first, the
+    // profile of a cadet goes before the account and the account goes last.
+    const fixtureUsers = await prisma.user.findMany({
+      where: { email: { contains: "access-" } },
+      select: { id: true },
+    });
+    const fixtureUserIds = fixtureUsers.map((user) => user.id);
+
+    const fixtureSessions = await prisma.attendanceSession.findMany({
       where: {
         title: {
           in: [
@@ -166,6 +132,46 @@ async function withFixtures(run) {
           ],
         },
       },
+      select: { id: true },
+    });
+    const fixtureSessionIds = fixtureSessions.map((session) => session.id);
+
+    const fixtureAttendances = await prisma.attendance.findMany({
+      where: { userId: { in: fixtureUserIds } },
+      select: { id: true },
+    });
+    const fixtureAttendanceIds = fixtureAttendances.map((row) => row.id);
+
+    await prisma.auditLog.deleteMany({
+      where: {
+        OR: [
+          { userId: { in: fixtureUserIds } },
+          // An event of a fixture account is removed by the account it
+          // points at, even when the event has no actor. The registration
+          // event of the applicant is such an event: it has no actor and its
+          // payload carries the address of the applicant as a reference, so
+          // the payload cannot be searched for it.
+          { entityId: { in: [...fixtureUserIds, ...fixtureSessionIds, ...fixtureAttendanceIds] } },
+        ],
+      },
+    });
+    await prisma.leaveRequest.deleteMany({
+      where: { userId: { in: fixtureUserIds } },
+    });
+    await prisma.attendance.deleteMany({
+      where: { userId: { in: fixtureUserIds } },
+    });
+    await prisma.attendanceManualCode.deleteMany({
+      where: { sessionId: { in: fixtureSessionIds } },
+    });
+    await prisma.attendanceQrToken.deleteMany({
+      where: { sessionId: { in: fixtureSessionIds } },
+    });
+    await prisma.attendanceSession.deleteMany({
+      where: { id: { in: fixtureSessionIds } },
+    });
+    await prisma.cadetProfile.deleteMany({
+      where: { userId: { in: fixtureUserIds } },
     });
     await prisma.user.deleteMany({
       where: { email: { contains: `access-` } },
@@ -500,14 +506,11 @@ test("a cadet cannot approve or reject an account", async (t) => {
 
 test("the registration endpoint refuses an arbitrary email address", async (t) => {
   const outcome = await withFixtures(async ({ post }) => {
+    // The application only carries the fields that the applicant owns. The
+    // academic fields of the unit come from the roster.
     const body = {
       fullName: "Personal Account",
       email: "someone@gmail.com",
-      wing: "Army",
-      division: "SD",
-      year: "1st Year",
-      branch: "Computer Science",
-      dob: "2006-01-01",
       bloodGroup: "O+",
       gender: "Male",
       phone: "9876543210",
@@ -528,16 +531,74 @@ test("the registration endpoint refuses an arbitrary email address", async (t) =
   assert.match(outcome.result.payload.error, /college email/i);
 });
 
+test("the registration endpoint refuses the fields of the roster and of the administrators", async (t) => {
+  const outcome = await withFixtures(async ({ post, emails }) => {
+    const body = {
+      fullName: "Sneaky Applicant",
+      email: emails.registered,
+      bloodGroup: "O+",
+      gender: "Male",
+      phone: "9876543210",
+      // The fields of the roster.
+      wing: "Army",
+      division: "SD",
+      year: "1st Year",
+      branch: "Computer Science",
+      prn: "PRN123",
+      regiNumber: "REG123",
+      // The field of an administrator.
+      dob: "2006-01-01",
+    };
+
+    const response = await post("/api/register", body);
+    const payload = await response.json();
+
+    return { status: response.status, payload };
+  });
+
+  if (outcome.skip) {
+    t.skip(outcome.skip);
+    return;
+  }
+
+  const result = outcome.result;
+  assert.equal(result.status, 400);
+  assert.match(result.payload.error, /maintained by the roster/i);
+
+  // Every refused field is reported with its name and with its owner.
+  assert.ok(Array.isArray(result.payload.fields));
+  assert.ok(result.payload.fields.length >= 7);
+
+  for (const field of result.payload.fields) {
+    assert.ok(
+      typeof field.field === "string" && field.field.length > 0,
+      "every refused field is named"
+    );
+    assert.ok(
+      typeof field.message === "string" && field.message.length > 0,
+      "every refused field has a message"
+    );
+  }
+
+  const names = result.payload.fields.map((field) => field.field);
+  for (const field of [
+    "wing",
+    "division",
+    "year",
+    "branch",
+    "prn",
+    "regiNumber",
+    "dob",
+  ]) {
+    assert.ok(names.includes(field), `the field ${field} is refused`);
+  }
+});
+
 test("the registration endpoint never lets a client pick a role or a state", async (t) => {
   const outcome = await withFixtures(async ({ post, emails }) => {
     const body = {
       fullName: "Sneaky Applicant",
       email: emails.registered,
-      wing: "Army",
-      division: "SD",
-      year: "1st Year",
-      branch: "Computer Science",
-      dob: "2006-01-01",
       bloodGroup: "O+",
       gender: "Male",
       phone: "9876543210",
@@ -547,8 +608,9 @@ test("the registration endpoint never lets a client pick a role or a state", asy
     };
 
     const response = await post("/api/register", body);
+    const payload = await response.json();
 
-    return { status: response.status };
+    return { status: response.status, payload };
   });
 
   if (outcome.skip) {
@@ -557,6 +619,7 @@ test("the registration endpoint never lets a client pick a role or a state", asy
   }
 
   assert.equal(outcome.result.status, 400);
+  assert.match(outcome.result.payload.error, /not part of the cadet application/i);
 });
 
 test("a registered college account stays pending and cannot use the portal", async (t) => {
@@ -565,11 +628,6 @@ test("a registered college account stays pending and cannot use the portal", asy
       const body = {
         fullName: "Registered Cadet",
         email: emails.registered,
-        wing: "Army",
-        division: "SD",
-        year: "1st Year",
-        branch: "Computer Science",
-        dob: "2006-01-01",
         bloodGroup: "O+",
         gender: "Male",
         phone: "9876543210",
@@ -581,6 +639,25 @@ test("a registered college account stays pending and cannot use the portal", asy
         where: { email: emails.registered },
         select: { id: true, role: true, approvalStatus: true },
       });
+
+      const profile = created
+        ? await prisma.cadetProfile.findUnique({
+            where: { userId: created.id },
+            select: {
+              fullName: true,
+              gender: true,
+              bloodGroup: true,
+              phone: true,
+              wing: true,
+              division: true,
+              year: true,
+              branch: true,
+              prn: true,
+              regiNumber: true,
+              dob: true,
+            },
+          })
+        : null;
 
       const cookie = await cookieFor({
         id: created.id,
@@ -597,6 +674,7 @@ test("a registered college account stays pending and cannot use the portal", asy
       return {
         status: response.status,
         created,
+        profile,
         dashboard: { status: dashboard.status, location: locationOf(dashboard) },
         download: download.status,
       };
@@ -615,6 +693,21 @@ test("a registered college account stays pending and cannot use the portal", asy
   assert.equal(result.dashboard.status, 307);
   assert.match(result.dashboard.location, /\/pending/);
   assert.equal(result.download, 403);
+
+  // The fields of the applicant are stored and the fields of the roster stay
+  // empty. The applicant never fills them in.
+  assert.ok(result.profile, "the application creates the profile of the cadet");
+  assert.equal(result.profile.fullName, "Registered Cadet");
+  assert.equal(result.profile.gender, "Male");
+  assert.equal(result.profile.bloodGroup, "O+");
+  assert.equal(result.profile.phone, "9876543210");
+  assert.equal(result.profile.wing, null);
+  assert.equal(result.profile.division, null);
+  assert.equal(result.profile.year, null);
+  assert.equal(result.profile.branch, null);
+  assert.equal(result.profile.prn, null);
+  assert.equal(result.profile.regiNumber, null);
+  assert.equal(result.profile.dob, null);
 });
 
 test("the roster import is admin only and reports invalid rows", async (t) => {

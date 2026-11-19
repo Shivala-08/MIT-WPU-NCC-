@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/guard";
+import { getSessionUser, isApprovedAccount } from "@/lib/guard";
 
 export default async function DashboardLayout({
   children,
@@ -12,7 +12,7 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  if (user.approvalStatus !== "APPROVED") {
+  if (!isApprovedAccount(user)) {
     redirect("/pending");
   }
 

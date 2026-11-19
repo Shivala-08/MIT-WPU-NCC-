@@ -8,17 +8,12 @@ import {
   Users,
   Calendar,
   CheckCircle2,
-  XCircle,
-  Clock,
-  Search,
-  Filter,
   LogOut,
   Plus,
-  Trash2,
-  AlertTriangle,
   Download,
 } from "lucide-react";
 import React from "react";
+import { formatCalendarDate } from "@/lib/calendar-date.mjs";
 
 interface OfficerDashboardProps {
   user: {
@@ -88,83 +83,11 @@ export default function OfficerDashboardClient({
 }: OfficerDashboardProps) {
   const profile = user.cadetProfile;
   const [activeTab, setActiveTab] = useState<"overview" | "attendance" | "cadets">("overview");
-  const [sessionForm, setSessionForm] = useState({
-    title: "",
-    type: "Parade",
-    date: new Date().toISOString().split("T")[0],
-    startTime: "06:30",
-    endTime: "09:30",
-  });
-  const [attendanceMarks, setAttendanceMarks] = useState<
-    Record<string, "PRESENT" | "ABSENT" | "ON_DUTY" | "LEAVE">
-  >({});
-  const [isSubmittingAttendance, setIsSubmittingAttendance] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(""), 4000);
-  };
-
-  const handleMarkAllPresent = () => {
-    const initialMarks: Record<string, "PRESENT" | "ABSENT" | "ON_DUTY" | "LEAVE"> = {};
-    approvedCadets.forEach((c) => {
-      initialMarks[c.id] = "PRESENT";
-    });
-    setAttendanceMarks(initialMarks);
-    showToast("All approved cadets marked Present");
-  };
-
-  const handleCreateSession = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (approvedCadets.length === 0) {
-      alert("No approved cadets found to log attendance for.");
-      return;
-    }
-
-    setIsSubmittingAttendance(true);
-    const marksPayload = approvedCadets.map((c) => ({
-      userId: c.id,
-      status: attendanceMarks[c.id] || "PRESENT",
-    }));
-
-    try {
-      const res = await fetch("/api/admin/attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...sessionForm,
-          marks: marksPayload,
-        }),
-      });
-
-      const resData = await res.json();
-      if (res.ok) {
-        window.location.reload();
-      } else {
-        alert(resData.error || "Failed to log attendance");
-      }
-    } catch {
-      alert("Error submitting session attendance");
-    } finally {
-      setIsSubmittingAttendance(false);
-    }
-  };
-
-  const handleUpdateAttendance = async (attendanceId: string, status: "PRESENT" | "ABSENT" | "ON_DUTY" | "LEAVE") => {
-    try {
-      const res = await fetch("/api/admin/attendance", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attendanceId, status }),
-      });
-      if (res.ok) {
-        showToast("Attendance updated");
-        window.location.reload();
-      }
-    } catch {
-      showToast("Failed to update attendance");
-    }
   };
 
   return (
@@ -193,6 +116,24 @@ export default function OfficerDashboardClient({
           </div>
 
           <div className="flex items-center gap-4">
+            <Link
+              href="/officer/attendance"
+              className="text-xs text-white/80 hover:text-white flex items-center gap-1"
+            >
+              Sessions
+            </Link>
+            <Link
+              href="/officer/leave"
+              className="text-xs text-white/80 hover:text-white flex items-center gap-1"
+            >
+              Leave
+            </Link>
+            <Link
+              href="/officer/reports/attendance"
+              className="text-xs text-white/80 hover:text-white flex items-center gap-1"
+            >
+              Reports
+            </Link>
             <Link
               href="/"
               target="_blank"
@@ -304,12 +245,8 @@ export default function OfficerDashboardClient({
                         <div>
                           <h4 className="font-bold text-sm text-gray-900">{s.title}</h4>
                           <p className="text-xs text-gray-500">
-                            {new Date(s.date).toLocaleDateString("en-IN", {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            })}
-                            • {s.type} • {s.attendances?.length ?? 0} cadets
+                            {formatCalendarDate(s.date)} • {s.type} •{" "}
+                            {s.attendances?.length ?? 0} cadets
                           </p>
                         </div>
                       </div>
@@ -370,146 +307,40 @@ export default function OfficerDashboardClient({
         {activeTab === "attendance" && (
           <div className="space-y-8">
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-sm">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-6 mb-6">
-                <div>
-                  <h2 className="font-heading font-black text-2xl text-gray-900">
-                    Log Training Attendance
-                  </h2>
-                  <p className="text-gray-500 text-xs sm:text-sm mt-1">
-                    Select drill, parade, or camp and mark rolls for all approved cadets
+              <h2 className="font-heading font-black text-2xl text-gray-900">
+                Attendance sessions
+              </h2>
+              <p className="text-gray-500 text-xs sm:text-sm mt-1">
+                Create a session, open it, mark the roll and run the QR check-in.
+              </p>
+
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Link
+                  href="/officer/attendance"
+                  className="p-4 rounded-2xl border border-gray-200 hover:border-ncc-dark-blue hover:bg-gray-50 transition-colors"
+                >
+                  <p className="font-bold text-sm text-gray-900">
+                    Attendance sessions
                   </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleMarkAllPresent}
-                  className="px-4 py-2 bg-ncc-dark-blue hover:bg-ncc-dark-blue/90 text-white font-bold text-xs rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+                  <p className="text-xs text-gray-500 mt-1">
+                    Open the session, mark the roll and read out the fallback
+                    code.
+                  </p>
+                </Link>
+
+                <Link
+                  href="/officer/reports/attendance"
+                  className="p-4 rounded-2xl border border-gray-200 hover:border-ncc-dark-blue hover:bg-gray-50 transition-colors"
                 >
-                  <CheckCircle2 className="w-4 h-4 text-ncc-gold" /> Bulk Mark All Present
-                </button>
+                  <p className="font-bold text-sm text-gray-900">
+                    Attendance reports
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    The attendance of the unit with the current calculation
+                    rules.
+                  </p>
+                </Link>
               </div>
-
-              <form onSubmit={handleCreateSession} className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                      Session / Parade Title *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Saturday Morning Foot Drill & Firing Practice"
-                      value={sessionForm.title}
-                      onChange={(e) =>
-                        setSessionForm({ ...sessionForm, title: e.target.value })
-                      }
-                      className="w-full px-4 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-ncc-red/30"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                      Session Type *
-                    </label>
-                    <select
-                      value={sessionForm.type}
-                      onChange={(e) =>
-                        setSessionForm({ ...sessionForm, type: e.target.value })
-                      }
-                      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white"
-                    >
-                      <option value="Parade">Parade Drill</option>
-                      <option value="Weapon Firing">Weapon Firing</option>
-                      <option value="Camp">Camp (CATC/TSC/RDC)</option>
-                      <option value="Social Service">Social Service Event</option>
-                      <option value="Lecture">Theory / Exam Lecture</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                      Date *
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={sessionForm.date}
-                      onChange={(e) =>
-                        setSessionForm({ ...sessionForm, date: e.target.value })
-                      }
-                      className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div className="border rounded-2xl p-4 bg-gray-50/50">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">
-                    Roll Call ({approvedCadets.length} Approved Cadets)
-                  </h3>
-                  {approvedCadets.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto pr-1">
-                      {approvedCadets.map((c) => {
-                        const currentStatus = attendanceMarks[c.id] || "PRESENT";
-                        return (
-                          <div
-                            key={c.id}
-                            className="p-3 rounded-xl bg-white border border-gray-200 flex items-center justify-between"
-                          >
-                            <div>
-                              <p className="font-bold text-xs text-gray-900">
-                                {c.cadetProfile?.fullName || c.name}
-                              </p>
-                              <p className="text-[10px] text-gray-500">
-                                {c.cadetProfile?.wing} • {c.cadetProfile?.regiNumber || "Reg No Pending"}
-                              </p>
-                            </div>
-                            <div className="flex gap-1">
-                              {(["PRESENT", "ABSENT", "ON_DUTY", "LEAVE"] as const).map(
-                                (st) => (
-                                  <button
-                                    key={st}
-                                    type="button"
-                                    onClick={() =>
-                                      setAttendanceMarks((prev) => ({
-                                        ...prev,
-                                        [c.id]: st,
-                                      }))
-                                    }
-                                    className={`px-2 py-1 rounded text-[10px] font-bold transition-all ${
-                                      currentStatus === st
-                                        ? st === "PRESENT"
-                                          ? "bg-emerald-600 text-white"
-                                          : st === "ABSENT"
-                                          ? "bg-red-600 text-white"
-                                          : st === "ON_DUTY"
-                                          ? "bg-blue-600 text-white"
-                                          : "bg-amber-600 text-white"
-                                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                                    }`}
-                                  >
-                                    {st === "ON_DUTY" ? "OD" : st[0]}
-                                  </button>
-                                )
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-gray-400 py-4 text-center">
-                      No approved cadets found. Please approve pending cadet applications first.
-                    </p>
-                  )}
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isSubmittingAttendance || approvedCadets.length === 0}
-                  className="px-6 py-3 rounded-xl bg-ncc-red hover:bg-ncc-red-light disabled:opacity-50 text-white font-bold text-sm shadow-md transition-all flex items-center gap-2"
-                >
-                  {isSubmittingAttendance ? "Saving Roll..." : "Save Attendance Session"}
-                </button>
-              </form>
             </div>
 
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-sm">
@@ -526,26 +357,19 @@ export default function OfficerDashboardClient({
                       <div>
                         <h4 className="font-bold text-sm text-gray-900">{s.title}</h4>
                         <p className="text-xs text-gray-500">
-                          {new Date(s.date).toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })}
-                          • Type: {s.type}
+                          {formatCalendarDate(s.date)} • Type: {s.type}
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-xs font-bold text-gray-700 bg-gray-100 px-3 py-1 rounded-full">
                           {s.attendances?.length ?? 0} Attended
                         </span>
-                        <button
-                          onClick={() => {
-                            // Navigate to session detail or show modal
-                          }}
+                        <Link
+                          href={`/officer/attendance/sessions/${s.id}`}
                           className="px-3 py-1.5 text-xs font-semibold text-ncc-red hover:text-ncc-red-light transition-colors"
                         >
                           View Details
-                        </button>
+                        </Link>
                       </div>
                     </div>
                   ))}

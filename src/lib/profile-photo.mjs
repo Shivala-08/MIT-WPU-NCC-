@@ -12,6 +12,17 @@ import { randomUUID } from "node:crypto";
 export const PROFILE_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 
 /**
+ * The largest request body that is read for a photo upload.
+ *
+ * The limit of the image itself is five megabytes. A multipart request
+ * carries the boundary and the headers of the part around the image, so the
+ * request is allowed to be a little larger than the image. The slack is
+ * small, so a request with a large body is refused while it is read and not
+ * after it was buffered completely.
+ */
+export const PROFILE_PHOTO_MAX_REQUEST_BYTES = PROFILE_PHOTO_MAX_BYTES + 64 * 1024;
+
+/**
  * @type {Readonly<Record<string, string>>}
  */
 export const PROFILE_PHOTO_ALLOWED_TYPES = Object.freeze({

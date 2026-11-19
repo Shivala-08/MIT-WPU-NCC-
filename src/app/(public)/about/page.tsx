@@ -1,15 +1,4 @@
 import { Metadata } from "next";
-import Image from "next/image";
-import {
-  Shield,
-  Target,
-  Users,
-  Award,
-  Heart,
-  Mountain,
-  Flag,
-  Star,
-} from "lucide-react";
 import prisma from "@/lib/prisma";
 import AboutClient from "./AboutClient";
 

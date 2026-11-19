@@ -30,6 +30,11 @@ type CadetRow = {
   name: string;
   email: string;
   approvalStatus: string;
+  /**
+   * The moment the account was deactivated, or null while it is active.
+   * A deactivated cadet is not deleted. Its history stays in the database.
+   */
+  deactivatedAt: string | Date | null;
   rosterMatched: boolean;
   rosterActive: boolean | null;
   rejectionReason: string | null;
@@ -56,6 +61,9 @@ type Detail = {
     approvalStatus: string;
     approvedAt: string | null;
     rejectionReason: string | null;
+    deactivatedAt: string | Date | null;
+    deactivatedById: string | null;
+    deactivationReason: string | null;
   };
   roster: {
     id: string;
@@ -303,6 +311,74 @@ export default function CadetDirectoryClient() {
     }
   };
 
+  /**
+   * Deactivates or reactivates an account.
+   *
+   * The account is never deleted. The attendance history, the leave requests,
+   * the profile and the audit history stay in the database.
+   */
+  const changeDeactivation = async (deactivate: boolean) => {
+    if (!selectedId) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      deactivate
+        ? "Deactivate this account? The cadet cannot sign in and cannot use the portal any more. The attendance history, the leave requests and the profile are kept."
+        : "Reactivate this account? The cadet can sign in and use the portal again."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsApproving(true);
+    setNotice(null);
+
+    try {
+      const response = await fetch("/api/admin/cadets", {
+        method: deactivate ? "DELETE" : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: deactivate
+          ? undefined
+          : JSON.stringify({ userId: selectedId, deactivated: false }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setNotice({
+          kind: "error",
+          text:
+            payload.error ??
+            (deactivate
+              ? "The account could not be deactivated"
+              : "The account could not be reactivated"),
+        });
+        return;
+      }
+
+      setNotice({
+        kind: "success",
+        text: deactivate
+          ? "The account is deactivated. The history of the cadet is kept."
+          : "The account is active again.",
+      });
+
+      await openDetail(selectedId);
+      await load();
+    } catch {
+      setNotice({
+        kind: "error",
+        text: deactivate
+          ? "The account could not be deactivated"
+          : "The account could not be reactivated",
+      });
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-sm">
@@ -463,13 +539,24 @@ export default function CadetDirectoryClient() {
                         {cadet.cadetProfile?.wing ?? "-"}
                       </td>
                       <td className="py-3 px-2">
-                        <span
-                          className={`px-2 py-1 rounded-full text-[10px] font-bold ${statusClass(
-                            cadet.approvalStatus
-                          )}`}
-                        >
-                          {cadet.approvalStatus}
-                        </span>
+                        {cadet.deactivatedAt ? (
+                          <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700 block">
+                            DEACTIVATED
+                          </span>
+                        ) : (
+                          <span
+                            className={`px-2 py-1 rounded-full text-[10px] font-bold ${statusClass(
+                              cadet.approvalStatus
+                            )}`}
+                          >
+                            {cadet.approvalStatus}
+                          </span>
+                        )}
+                        {cadet.deactivatedAt ? (
+                          <span className="block text-[10px] text-slate-500 mt-1">
+                            History kept
+                          </span>
+                        ) : null}
                       </td>
                       <td className="py-3 px-2">
                         <span
@@ -549,33 +636,67 @@ export default function CadetDirectoryClient() {
                     <Mail className="w-3.5 h-3.5 shrink-0" /> {detail.user.email}
                   </p>
                   <span
-                    className={`mt-1 inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${statusClass(
-                      detail.user.approvalStatus
-                    )}`}
+                    className={`mt-1 inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      detail.user.deactivatedAt
+                        ? "bg-slate-200 text-slate-700"
+                        : statusClass(detail.user.approvalStatus)
+                    }`}
                   >
-                    {detail.user.approvalStatus}
+                    {detail.user.deactivatedAt
+                      ? "DEACTIVATED"
+                      : detail.user.approvalStatus}
                   </span>
+                  {detail.user.deactivatedAt ? (
+                    <p className="text-[10px] text-slate-600 mt-1">
+                      The account is deactivated. The attendance history, the
+                      leave requests and the profile are kept.
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => changeApproval("APPROVED")}
-                  disabled={isApproving}
-                  className="flex-1 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-[11px] font-bold flex items-center justify-center gap-1.5"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Approve
-                </button>
-                <button
-                  type="button"
-                  onClick={() => changeApproval("REJECTED")}
-                  disabled={isApproving}
-                  className="flex-1 px-3 py-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-[11px] font-bold flex items-center justify-center gap-1.5"
-                >
-                  <XCircle className="w-3.5 h-3.5" /> Reject
-                </button>
+                {detail.user.deactivatedAt ? (
+                  <button
+                    type="button"
+                    onClick={() => changeDeactivation(false)}
+                    disabled={isApproving}
+                    className="flex-1 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-[11px] font-bold flex items-center justify-center gap-1.5"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Reactivate
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => changeApproval("APPROVED")}
+                      disabled={isApproving}
+                      className="flex-1 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-[11px] font-bold flex items-center justify-center gap-1.5"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => changeApproval("REJECTED")}
+                      disabled={isApproving}
+                      className="flex-1 px-3 py-2 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-[11px] font-bold flex items-center justify-center gap-1.5"
+                    >
+                      <XCircle className="w-3.5 h-3.5" /> Reject
+                    </button>
+                  </>
+                )}
               </div>
+
+              {!detail.user.deactivatedAt ? (
+                <button
+                  type="button"
+                  onClick={() => changeDeactivation(true)}
+                  disabled={isApproving}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 text-[11px] font-bold flex items-center justify-center gap-1.5"
+                >
+                  <Lock className="w-3.5 h-3.5" /> Deactivate the account
+                </button>
+              ) : null}
 
               <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 text-[11px] text-gray-600 space-y-1.5">
                 <p className="flex items-center gap-1.5 font-bold text-gray-700">

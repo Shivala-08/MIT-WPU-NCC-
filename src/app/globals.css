@@ -199,6 +199,17 @@
   @apply bg-gray-200 rounded animate-pulse;
 }
 
+/*
+ * The touch target of an interactive control.
+ *
+ * The officers mark the attendance on a phone, so every control of the
+ * attendance screens needs a tap area of at least 44 by 44 CSS pixels.
+ */
+@utility touch-target {
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+}
+
 /* Prevent layout shifts */
 .aspect-video { aspect-ratio: 16 / 9; }
 .aspect-square { aspect-ratio: 1 / 1; }

@@ -2,33 +2,18 @@ import { NextResponse } from "next/server";
 import { authorize } from "@/lib/guard";
 import prisma from "@/lib/prisma";
 import {
-  buildPhotoObjectNames,
+  PROFILE_PHOTO_MAX_REQUEST_BYTES,
   isPhotoPathOwnedBy,
-  PROFILE_PHOTO_MAX_BYTES,
-  validateProfilePhoto,
 } from "@/lib/profile-photo.mjs";
 import { createProfilePhotoStorage } from "@/lib/profile-storage.mjs";
 import { processProfilePhoto } from "@/lib/profile-photo-image";
+import {
+  removeProfilePhoto,
+  replaceProfilePhoto,
+} from "@/lib/profile-photo-service.mjs";
+import { readMultipartBody } from "@/lib/http-body.mjs";
 
 const PROFILE_ROLES = ["CADET", "OFFICER", "ADMIN"] as const;
-
-type PhotoStorage = {
-  put(path: string, bytes: Uint8Array, contentType: string): Promise<boolean>;
-  remove(path: string): Promise<boolean>;
-  read(
-    path: string
-  ): Promise<
-    | { ok: true; bytes: Uint8Array; contentType: string }
-    | { ok: false }
-  >;
-};
-
-async function loadOwnProfile(userId: string) {
-  return prisma.cadetProfile.findUnique({
-    where: { userId },
-    select: { id: true, photoUrl: true, photoThumbnailUrl: true },
-  });
-}
 
 /**
  * Uploads the profile photo of the signed in cadet.
@@ -36,6 +21,13 @@ async function loadOwnProfile(userId: string) {
  * The route never accepts a user id, a storage path or a bucket name: the
  * owner is taken from the session and the object names are generated on the
  * server.
+ *
+ * The body of the request is read with a limit, so an oversized upload is
+ * refused while it is read and not after the whole body was buffered.
+ *
+ * The replacement itself lives in the photo service, so that the recovery
+ * after a failure of the storage or of the database can be proved against a
+ * real database.
  */
 export async function POST(req: Request) {
   const authz = await authorize([...PROFILE_ROLES]);
@@ -44,139 +36,79 @@ export async function POST(req: Request) {
     return authz.response;
   }
 
-  let uploadedPhotoPath: string | null = null;
-  let uploadedThumbnailPath: string | null = null;
-  let storage: PhotoStorage | null = null;
+  let form: FormData;
 
   try {
-    const form = await req.formData();
-    const entry = form.get("photo");
-
-    if (!entry || typeof entry === "string") {
-      return NextResponse.json(
-        { error: "A photo file is required" },
-        { status: 400 }
-      );
-    }
-
-    const file = entry as File;
-    const bytes = new Uint8Array(await file.arrayBuffer());
-
-    const validation = validateProfilePhoto({
-      bytes,
-      declaredType: file.type,
-      size: file.size ?? bytes.length,
-      maxBytes: PROFILE_PHOTO_MAX_BYTES,
-    });
-
-    if (!validation.ok) {
-      return NextResponse.json(
-        { error: validation.error, code: validation.code },
-        { status: 400 }
-      );
-    }
-
-    const created = await createProfilePhotoStorage();
-
-    if (!created.ok) {
-      return NextResponse.json({ error: created.error }, { status: 503 });
-    }
-
-    const photoStorage: PhotoStorage = created.storage;
-    storage = photoStorage;
-
-    let processed;
-
-    try {
-      processed = await processProfilePhoto(bytes);
-    } catch (error) {
-      console.error("Failed to process the profile photo:", error);
-      return NextResponse.json(
-        { error: "The photo could not be processed" },
-        { status: 400 }
-      );
-    }
-
-    const { photoPath, thumbnailPath } = buildPhotoObjectNames(authz.user.id);
-
-    await photoStorage.put(photoPath, processed.photo, "image/webp");
-    uploadedPhotoPath = photoPath;
-
-    await photoStorage.put(thumbnailPath, processed.thumbnail, "image/webp");
-    uploadedThumbnailPath = thumbnailPath;
-
-    const profile = await loadOwnProfile(authz.user.id);
-
-    if (!profile) {
-      throw new Error("Cadet profile not found");
-    }
-
-    await prisma.cadetProfile.update({
-      where: { userId: authz.user.id },
-      data: { photoUrl: photoPath, photoThumbnailUrl: thumbnailPath },
-    });
-
-    const previousPhoto = profile.photoUrl;
-    const previousThumbnail = profile.photoThumbnailUrl;
-
-    if (
-      previousPhoto &&
-      isPhotoPathOwnedBy(previousPhoto, authz.user.id) &&
-      previousPhoto !== photoPath
-    ) {
-      await photoStorage.remove(previousPhoto).catch((error: unknown) => {
-        console.error("Failed to remove the previous profile photo:", error);
-      });
-    }
-
-    if (
-      previousThumbnail &&
-      isPhotoPathOwnedBy(previousThumbnail, authz.user.id) &&
-      previousThumbnail !== thumbnailPath
-    ) {
-      await photoStorage.remove(previousThumbnail).catch((error: unknown) => {
-        console.error("Failed to remove the previous thumbnail:", error);
-      });
-    }
-
-    await prisma.auditLog.create({
-      data: {
-        userId: authz.user.id,
-        action: "PROFILE_PHOTO_UPDATED",
-        entity: "CadetProfile",
-        entityId: profile.id,
-        oldData: { photoUrl: previousPhoto ?? null },
-        newData: { photoUrl: photoPath },
-      },
-    });
-
-    return NextResponse.json({
-      success: true,
-      hasPhoto: true,
-      width: processed.width,
-      height: processed.height,
-    });
+    form = await readMultipartBody(req, PROFILE_PHOTO_MAX_REQUEST_BYTES);
   } catch (error) {
-    console.error("Failed to store the profile photo:", error);
+    const statusCode =
+      typeof (error as { statusCode?: number })?.statusCode === "number"
+        ? (error as { statusCode: number }).statusCode
+        : 400;
 
-    if (storage) {
-      if (uploadedPhotoPath) {
-        await storage.remove(uploadedPhotoPath).catch(() => undefined);
-      }
-      if (uploadedThumbnailPath) {
-        await storage.remove(uploadedThumbnailPath).catch(() => undefined);
-      }
+    if (statusCode >= 500) {
+      console.error("Failed to read the photo upload:", error);
     }
 
     return NextResponse.json(
-      { error: "The photo could not be stored" },
-      { status: 500 }
+      {
+        error:
+          statusCode === 413
+            ? "The photo is too large"
+            : "The photo could not be read",
+      },
+      { status: statusCode }
     );
   }
+
+  const entry = form.get("photo");
+
+  if (!entry || typeof entry === "string") {
+    return NextResponse.json(
+      { error: "A photo file is required" },
+      { status: 400 }
+    );
+  }
+
+  const file = entry as File;
+  const created = await createProfilePhotoStorage();
+
+  if (!created.ok) {
+    return NextResponse.json({ error: created.error }, { status: 503 });
+  }
+
+  const result = await replaceProfilePhoto({
+    db: prisma,
+    storage: created.storage,
+    processor: processProfilePhoto,
+    userId: authz.user.id,
+    bytes: new Uint8Array(await file.arrayBuffer()),
+    declaredType: file.type,
+    size: file.size,
+  });
+
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: result.error, code: result.code },
+      { status: result.statusCode }
+    );
+  }
+
+  return NextResponse.json({
+    success: true,
+    hasPhoto: true,
+    width: result.width,
+    height: result.height,
+  });
 }
 
 /**
  * Removes the profile photo of the signed in cadet.
+ *
+ * The pointer of the profile and the audit event are changed in one
+ * transaction. The objects of the storage are removed after the transaction,
+ * so a failure of the removal never leaves the profile pointing at an object
+ * that is gone.
  */
 export async function DELETE() {
   const authz = await authorize([...PROFILE_ROLES]);
@@ -185,54 +117,26 @@ export async function DELETE() {
     return authz.response;
   }
 
-  try {
-    const profile = await loadOwnProfile(authz.user.id);
+  const created = await createProfilePhotoStorage();
 
-    if (!profile) {
-      return NextResponse.json(
-        { error: "Cadet profile not found" },
-        { status: 404 }
-      );
-    }
+  if (!created.ok) {
+    return NextResponse.json({ error: created.error }, { status: 503 });
+  }
 
-    const created = await createProfilePhotoStorage();
+  const result = await removeProfilePhoto({
+    db: prisma,
+    storage: created.storage,
+    userId: authz.user.id,
+  });
 
-    if (!created.ok) {
-      return NextResponse.json({ error: created.error }, { status: 503 });
-    }
-
-    await prisma.cadetProfile.update({
-      where: { userId: authz.user.id },
-      data: { photoUrl: null, photoThumbnailUrl: null },
-    });
-
-    for (const path of [profile.photoUrl, profile.photoThumbnailUrl]) {
-      if (path && isPhotoPathOwnedBy(path, authz.user.id)) {
-        await created.storage.remove(path).catch((error: unknown) => {
-          console.error("Failed to remove the profile photo:", error);
-        });
-      }
-    }
-
-    await prisma.auditLog.create({
-      data: {
-        userId: authz.user.id,
-        action: "PROFILE_PHOTO_REMOVED",
-        entity: "CadetProfile",
-        entityId: profile.id,
-        oldData: { photoUrl: profile.photoUrl ?? null },
-        newData: { photoUrl: null },
-      },
-    });
-
-    return NextResponse.json({ success: true, hasPhoto: false });
-  } catch (error) {
-    console.error("Failed to remove the profile photo:", error);
+  if (!result.ok) {
     return NextResponse.json(
-      { error: "The photo could not be removed" },
-      { status: 500 }
+      { error: result.error },
+      { status: result.statusCode }
     );
   }
+
+  return NextResponse.json({ success: true, hasPhoto: false });
 }
 
 /**
@@ -252,7 +156,11 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const variant = searchParams.get("variant") === "thumbnail" ? "thumbnail" : "photo";
 
-    const profile = await loadOwnProfile(authz.user.id);
+    const profile = await prisma.cadetProfile.findUnique({
+      where: { userId: authz.user.id },
+      select: { photoUrl: true, photoThumbnailUrl: true },
+    });
+
     const path = variant === "thumbnail" ? profile?.photoThumbnailUrl : profile?.photoUrl;
 
     if (!profile || !path || !isPhotoPathOwnedBy(path, authz.user.id)) {
